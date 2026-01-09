@@ -16,10 +16,7 @@ public class MainHook implements IXposedHookLoadPackage {
 
     private static final String TAG = "SpeechAssistSecure";
 
-    private static final Map<Object, Boolean> secureApplied =
-            new IdentityHashMap<>();
-
-    private static final Map<Object, Object> surfaceCache =
+    private static final Map<Object, Object> vriToSurface =
             new IdentityHashMap<>();
 
     @Override
@@ -67,14 +64,13 @@ public class MainHook implements IXposedHookLoadPackage {
 
     private void handleSecure(Object vri, ClassLoader cl) {
         try {
-            Object sc = resolveSurface(vri);
+            Object sc = findValidSurface(vri);
             if (sc == null) return;
 
-            if (!(boolean) XposedHelpers.callMethod(sc, "isValid")) return;
-
-            synchronized (secureApplied) {
-                if (secureApplied.containsKey(sc)) return;
-                secureApplied.put(sc, Boolean.TRUE);
+            synchronized (vriToSurface) {
+                Object last = vriToSurface.get(vri);
+                if (last == sc) return;
+                vriToSurface.put(vri, sc);
             }
 
             Class<?> txnClass =
@@ -99,23 +95,7 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
-    private Object resolveSurface(Object vri) {
-        synchronized (surfaceCache) {
-            Object cached = surfaceCache.get(vri);
-            if (cached != null) {
-                try {
-                    if ((boolean) XposedHelpers.callMethod(cached, "isValid")) {
-                        return cached;
-                    } else {
-                        surfaceCache.remove(vri);
-                    }
-                } catch (Throwable ignored) {
-                    surfaceCache.remove(vri);
-                }
-            }
-        }
-
-        Object sc = null;
+    private Object findValidSurface(Object vri) {
         String[] fields = {
                 "mSurfaceControl",
                 "mLeash",
@@ -125,21 +105,13 @@ public class MainHook implements IXposedHookLoadPackage {
 
         for (String f : fields) {
             try {
-                Object tmp = XposedHelpers.getObjectField(vri, f);
-                if (tmp != null &&
-                        (boolean) XposedHelpers.callMethod(tmp, "isValid")) {
-                    sc = tmp;
-                    break;
+                Object sc = XposedHelpers.getObjectField(vri, f);
+                if (sc != null &&
+                        (boolean) XposedHelpers.callMethod(sc, "isValid")) {
+                    return sc;
                 }
             } catch (Throwable ignored) {}
         }
-
-        if (sc != null) {
-            synchronized (surfaceCache) {
-                surfaceCache.put(vri, sc);
-            }
-        }
-
-        return sc;
+        return null;
     }
 }
