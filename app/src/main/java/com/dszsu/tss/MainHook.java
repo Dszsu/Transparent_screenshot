@@ -22,7 +22,6 @@ public class MainHook implements IXposedHookLoadPackage {
     private static final Map<Object, Object> surfaceCache =
             new IdentityHashMap<>();
 
-    
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
         String pkg = lpparam.packageName;
@@ -50,7 +49,7 @@ public class MainHook implements IXposedHookLoadPackage {
         XposedBridge.hookAllMethods(vriClass, "performTraversals", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
-                handleSecureOnce(param.thisObject, lpparam.classLoader);
+                handleSecure(param.thisObject, lpparam.classLoader);
             }
         });
     }
@@ -66,17 +65,17 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
-    private void handleSecureOnce(Object vri, ClassLoader cl) {
+    private void handleSecure(Object vri, ClassLoader cl) {
         try {
             Object sc = resolveSurface(vri);
             if (sc == null) return;
+
+            if (!(boolean) XposedHelpers.callMethod(sc, "isValid")) return;
 
             synchronized (secureApplied) {
                 if (secureApplied.containsKey(sc)) return;
                 secureApplied.put(sc, Boolean.TRUE);
             }
-
-            if (!(boolean) XposedHelpers.callMethod(sc, "isValid")) return;
 
             Class<?> txnClass =
                     XposedHelpers.findClass("android.view.SurfaceControl$Transaction", cl);
@@ -103,7 +102,17 @@ public class MainHook implements IXposedHookLoadPackage {
     private Object resolveSurface(Object vri) {
         synchronized (surfaceCache) {
             Object cached = surfaceCache.get(vri);
-            if (cached != null) return cached;
+            if (cached != null) {
+                try {
+                    if ((boolean) XposedHelpers.callMethod(cached, "isValid")) {
+                        return cached;
+                    } else {
+                        surfaceCache.remove(vri);
+                    }
+                } catch (Throwable ignored) {
+                    surfaceCache.remove(vri);
+                }
+            }
         }
 
         Object sc = null;
@@ -116,8 +125,12 @@ public class MainHook implements IXposedHookLoadPackage {
 
         for (String f : fields) {
             try {
-                sc = XposedHelpers.getObjectField(vri, f);
-                if (sc != null) break;
+                Object tmp = XposedHelpers.getObjectField(vri, f);
+                if (tmp != null &&
+                        (boolean) XposedHelpers.callMethod(tmp, "isValid")) {
+                    sc = tmp;
+                    break;
+                }
             } catch (Throwable ignored) {}
         }
 
@@ -126,6 +139,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 surfaceCache.put(vri, sc);
             }
         }
+
         return sc;
     }
 }
