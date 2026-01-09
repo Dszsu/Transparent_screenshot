@@ -22,6 +22,7 @@ public class MainHook implements IXposedHookLoadPackage {
     private static final Map<Object, Object> surfaceCache =
             new IdentityHashMap<>();
 
+    
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
         String pkg = lpparam.packageName;
