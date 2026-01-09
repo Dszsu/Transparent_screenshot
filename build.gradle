@@ -1,0 +1,17 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https:
+    }
+}
+
+plugins {
+    id 'com.android.application' version '8.13.2' apply false
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+
+}
+
