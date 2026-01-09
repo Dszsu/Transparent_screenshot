@@ -10,8 +10,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url 'https://jitpack.io' }
+        maven { url 'https://api.xposed.info/' }
     }
 }
 
-rootProject.name = "transparent_screenshot"
+rootProject.name = "SecureFlagModule"
+
 include ':app'
