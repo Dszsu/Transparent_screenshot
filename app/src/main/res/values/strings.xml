@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">透明截图</string>
+    <!-- 可继续添加其他字符串，但绝对不能出现 <style> -->
+</resources>

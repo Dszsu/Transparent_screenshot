@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 夜间模式不覆盖任何样式，所有内容继承自基础 themes.xml -->
+</resources>

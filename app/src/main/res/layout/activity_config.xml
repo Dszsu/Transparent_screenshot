@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white"
+    android:fitsSystemWindows="true"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:background="@android:color/white">
+
+        <!-- 顶部应用信息栏（图标+应用名+包名） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="8dp"
+            android:clickable="false">
+
+            <ImageView
+                android:id="@+id/iv_app_icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="12dp"
+                android:contentDescription="应用图标" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_app_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="16sp"
+                    android:textColor="?android:attr/textColorPrimary" />
+
+                <TextView
+                    android:id="@+id/tv_app_package"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="14sp"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 分割线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="?android:attr/listDivider"
+            android:layout_marginVertical="12dp" />
+
+        <!-- 功能开关列表 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:divider="?android:attr/listDivider"
+            android:showDividers="middle">
+
+            <!-- disable_skip_screenshot -->
+            <LinearLayout style="@style/ConfigItemRow">
+                <TextView style="@style/ConfigItemLabel" android:text="禁用 skipScreenshot" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switch_disable_skip_screenshot"
+                    style="@style/ConfigItemSwitch" />
+            </LinearLayout>
+
+            <!-- FLAG_DIM_BEHIND_0 -->
+            <LinearLayout style="@style/ConfigItemRow">
+                <TextView style="@style/ConfigItemLabel" android:text="去除阴影遮罩" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switch_dim_behind"
+                    style="@style/ConfigItemSwitch" />
+            </LinearLayout>
+
+            <!-- window_no_focus -->
+            <LinearLayout style="@style/ConfigItemRow">
+                <TextView style="@style/ConfigItemLabel" android:text="窗口不获取焦点" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switch_no_focus"
+                    style="@style/ConfigItemSwitch" />
+            </LinearLayout>
+
+            <!-- magic_flags -->
+            <LinearLayout style="@style/ConfigItemRow">
+                <TextView style="@style/ConfigItemLabel" android:text="启用 MagicFlags" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switch_magic_flags"
+                    style="@style/ConfigItemSwitch" />
+            </LinearLayout>
+
+            <!-- hide_recent_card -->
+            <LinearLayout style="@style/ConfigItemRow">
+                <TextView style="@style/ConfigItemLabel" android:text="隐藏后台卡片" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switch_hide_recent_card"
+                    style="@style/ConfigItemSwitch" />
+            </LinearLayout>
+
+            <!-- 窗口标题 开关 + 输入框 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingVertical="8dp">
+
+                <LinearLayout style="@style/ConfigItemRow">
+                    <TextView style="@style/ConfigItemLabel" android:text="修改窗口标题为" />
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switch_window_title"
+                        style="@style/ConfigItemSwitch" />
+                </LinearLayout>
+
+                <EditText
+                    android:id="@+id/edit_window_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="输入标题（例如：系统录屏）"
+                    android:enabled="false"
+                    android:paddingHorizontal="16dp"
+                    android:layout_marginTop="4dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>
