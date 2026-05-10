@@ -1,0 +1,169 @@
+package com.dszsu.tss;
+
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
+import android.os.Handler;
+import android.os.Looper;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import io.github.libxposed.service.XposedService;
+
+public class AppListRepository {
+
+    private static volatile AppListRepository instance;
+
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private volatile List<AppInfo> allApps = Collections.emptyList();
+    private volatile Set<String> scopeSet = Collections.emptySet();
+    private volatile Set<String> configuredSet = Collections.emptySet();
+    private volatile boolean isLoading = false;
+
+    private static final Set<String> SYSTEM_CRITICAL = new HashSet<>();
+    static {
+        SYSTEM_CRITICAL.add("android");
+        SYSTEM_CRITICAL.add("system");
+        SYSTEM_CRITICAL.add("com.android.systemui");
+    }
+
+    public interface OnDataRefreshListener {
+        void onRefreshComplete(List<AppInfo> filteredList);
+        void onLoadingStateChanged(boolean isLoading);
+    }
+
+    public static AppListRepository getInstance() {
+        if (instance == null) {
+            synchronized (AppListRepository.class) {
+                if (instance == null) instance = new AppListRepository();
+            }
+        }
+        return instance;
+    }
+
+    public void refreshData(XposedService service, PackageManager pm, OnDataRefreshListener listener) {
+        if (isLoading) return;
+        isLoading = true;
+        notifyLoading(listener, true);
+
+        executor.execute(() -> {
+            try {
+                // 作用域
+                List<String> rawScope = service != null ? service.getScope() : null;
+                Set<String> scope = new HashSet<>();
+                if (rawScope != null) for (String s : rawScope) scope.add(s.toLowerCase());
+                scopeSet = scope;
+
+                // 全量应用
+                List<ApplicationInfo> installed = pm.getInstalledApplications(PackageManager.GET_META_DATA);
+                List<AppInfo> apps = new ArrayList<>(installed.size());
+                Set<String> seenPackages = new HashSet<>();
+                for (ApplicationInfo app : installed) {
+                    String pkg = app.packageName;
+                    String lowerPkg = pkg.toLowerCase();
+                    seenPackages.add(lowerPkg);
+                    boolean inScope = scope.contains(lowerPkg);
+                    boolean critical = isSystemCritical(lowerPkg);
+                    apps.add(new AppInfo(
+                            app.loadLabel(pm).toString(),
+                            pkg,
+                            null,
+                            inScope,
+                            false,
+                            critical
+                    ));
+                }
+
+                // 添加作用域中但未出现的系统关键虚拟包（如 system）
+                for (String scopePkg : scope) {
+                    String lower = scopePkg.toLowerCase();
+                    if (!seenPackages.contains(lower) && isSystemCritical(lower)) {
+                        if ("system".equals(lower)) {
+                            // system 虚拟包：显示为“系统框架”，图标使用 android 应用的图标
+                            Drawable icon = null;
+                            try {
+                                ApplicationInfo androidApp = pm.getApplicationInfo("android", 0);
+                                icon = androidApp.loadIcon(pm);
+                            } catch (PackageManager.NameNotFoundException ignored) {}
+                            apps.add(new AppInfo("系统框架", lower, icon, true, false, true));
+                        } else {
+                            apps.add(new AppInfo(lower, lower, null, true, false, true));
+                        }
+                    }
+                }
+
+                Collections.sort(apps, Comparator.comparing(a -> a.getLabel().toLowerCase()));
+                allApps = apps;
+
+                // 查询已配置
+                Set<String> configured = new HashSet<>();
+                if (service != null) {
+                    for (AppInfo info : apps) {
+                        try {
+                            SharedPreferences prefs = service.getRemotePreferences(info.getPackageName().toLowerCase());
+                            if (!prefs.getAll().isEmpty()) configured.add(info.getPackageName().toLowerCase());
+                        } catch (Throwable ignored) {}
+                    }
+                }
+                configuredSet = configured;
+
+                for (AppInfo info : apps) {
+                    if (configured.contains(info.getPackageName().toLowerCase())) info.setHasConfig(true);
+                }
+
+                List<AppInfo> filtered = filterApps(apps, scope, configured, "");
+                mainHandler.post(() -> {
+                    isLoading = false;
+                    notifyLoading(listener, false);
+                    listener.onRefreshComplete(filtered);
+                });
+            } catch (Throwable t) {
+                mainHandler.post(() -> {
+                    isLoading = false;
+                    notifyLoading(listener, false);
+                    listener.onRefreshComplete(Collections.emptyList());
+                });
+            }
+        });
+    }
+
+    public List<AppInfo> filterApps(String searchQuery) {
+        return filterApps(allApps, scopeSet, configuredSet, searchQuery);
+    }
+
+    private List<AppInfo> filterApps(List<AppInfo> apps, Set<String> scope, Set<String> configured, String search) {
+        List<AppInfo> result = new ArrayList<>();
+        String lowerSearch = search.toLowerCase().trim();
+        for (AppInfo info : apps) {
+            if (!info.isInScope() && !info.isShowConfig()) continue;
+            if (lowerSearch.isEmpty() ||
+                    info.getLabel().toLowerCase().contains(lowerSearch) ||
+                    info.getPackageName().toLowerCase().contains(lowerSearch)) {
+                result.add(info);
+            }
+        }
+        return result;
+    }
+
+    private boolean isSystemCritical(String lowerPkg) {
+        if (SYSTEM_CRITICAL.contains(lowerPkg)) return true;
+        for (String critical : SYSTEM_CRITICAL) {
+            if (lowerPkg.startsWith(critical + ".")) return true;
+        }
+        return false;
+    }
+
+    private void notifyLoading(OnDataRefreshListener listener, boolean loading) {
+        if (listener != null) mainHandler.post(() -> listener.onLoadingStateChanged(loading));
+    }
+}

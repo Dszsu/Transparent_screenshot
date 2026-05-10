@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/white"
+    android:background="?android:attr/colorBackground"
     android:fitsSystemWindows="true"
     android:fillViewport="true">
 
@@ -11,9 +11,9 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="16dp"
-        android:background="@android:color/white">
+        android:background="?android:attr/colorBackground">
 
-        <!-- 顶部应用信息栏（图标+应用名+包名） -->
+        <!-- 顶部应用信息栏 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -52,7 +52,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 分割线 -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -67,15 +66,14 @@
             android:divider="?android:attr/listDivider"
             android:showDividers="middle">
 
-            <!-- disable_skip_screenshot -->
+            <!-- enable_skip_screenshot -->
             <LinearLayout style="@style/ConfigItemRow">
-                <TextView style="@style/ConfigItemLabel" android:text="禁用 skipScreenshot" />
+                <TextView style="@style/ConfigItemLabel" android:text="启用 skipScreenshot" />
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/switch_disable_skip_screenshot"
                     style="@style/ConfigItemSwitch" />
             </LinearLayout>
 
-            <!-- FLAG_DIM_BEHIND_0 -->
             <LinearLayout style="@style/ConfigItemRow">
                 <TextView style="@style/ConfigItemLabel" android:text="去除阴影遮罩" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -83,7 +81,6 @@
                     style="@style/ConfigItemSwitch" />
             </LinearLayout>
 
-            <!-- window_no_focus -->
             <LinearLayout style="@style/ConfigItemRow">
                 <TextView style="@style/ConfigItemLabel" android:text="窗口不获取焦点" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -91,7 +88,6 @@
                     style="@style/ConfigItemSwitch" />
             </LinearLayout>
 
-            <!-- magic_flags -->
             <LinearLayout style="@style/ConfigItemRow">
                 <TextView style="@style/ConfigItemLabel" android:text="启用 MagicFlags" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -99,7 +95,6 @@
                     style="@style/ConfigItemSwitch" />
             </LinearLayout>
 
-            <!-- hide_recent_card -->
             <LinearLayout style="@style/ConfigItemRow">
                 <TextView style="@style/ConfigItemLabel" android:text="隐藏后台卡片" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -107,7 +102,7 @@
                     style="@style/ConfigItemSwitch" />
             </LinearLayout>
 
-            <!-- 窗口标题 开关 + 输入框 -->
+            <!-- 窗口标题 开关 + 模式下拉 + 提示 + 自定义输入 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -121,16 +116,38 @@
                         style="@style/ConfigItemSwitch" />
                 </LinearLayout>
 
-                <EditText
-                    android:id="@+id/edit_window_title"
+                <LinearLayout
+                    android:id="@+id/layout_title_picker"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="输入标题（例如：系统录屏）"
+                    android:orientation="vertical"
                     android:enabled="false"
-                    android:paddingHorizontal="16dp"
-                    android:layout_marginTop="4dp" />
+                    android:alpha="0.5">
+
+                    <Spinner
+                        android:id="@+id/spinner_title_mode"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <TextView
+                        android:id="@+id/text_global_hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="14sp"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone" />
+
+                    <EditText
+                        android:id="@+id/edit_custom_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="输入自定义标题"
+                        android:enabled="true"
+                        android:visibility="gone"
+                        android:layout_marginTop="8dp" />
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
-
     </LinearLayout>
 </ScrollView>

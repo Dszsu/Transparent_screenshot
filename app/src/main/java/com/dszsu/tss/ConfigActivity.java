@@ -1,114 +1,75 @@
 package com.dszsu.tss;
 
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
-import java.util.List;
 
-public class ConfigActivity extends AppCompatActivity {
+import io.github.libxposed.service.XposedService;
+
+public class ConfigActivity extends AppCompatActivity implements App.ServiceListener {
 
     private String packageName;
-    private JsonConfigManager configManager;
-    private SwitchCompat switchWindowTitle;
-    private android.widget.EditText editTitle;
+    private XposedService service;
+    private SwitchCompat switchDisableSkipScreenshot, switchDimBehind, switchNoFocus,
+            switchMagicFlags, switchHideRecentCard, switchWindowTitle;
+    private EditText editCustomTitle;
+    private Spinner spinnerTitleMode;
+    private View layoutTitlePicker;
+    private TextView textGlobalHint;
+    private boolean loading = false;
+
+    private static final String GLOBAL_GROUP = "global";
+    private static final String KEY_GLOBAL_TITLE = "title";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_config);
 
-        // 设置状态栏白色 + 深色图标（与主界面统一）
-        getWindow().setStatusBarColor(android.graphics.Color.WHITE);
-        getWindow().getDecorView().setSystemUiVisibility(
-                getWindow().getDecorView().getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-
         packageName = getIntent().getStringExtra("packageName");
-        if (packageName == null) {
-            finish();
-            return;
-        }
+        if (packageName == null) { finish(); return; }
 
-        configManager = new JsonConfigManager(this);
-
-        // 顶部信息栏
+        bindViews();
         setTopBarInfo();
+        App.addListener(this);
+    }
 
-        // 绑定控件
-        SwitchCompat switchDisableSkipScreenshot = findViewById(R.id.switch_disable_skip_screenshot);
-        SwitchCompat switchDimBehind = findViewById(R.id.switch_dim_behind);
-        SwitchCompat switchNoFocus = findViewById(R.id.switch_no_focus);
-        SwitchCompat switchMagicFlags = findViewById(R.id.switch_magic_flags);
-        SwitchCompat switchHideRecentCard = findViewById(R.id.switch_hide_recent_card);
+    private void bindViews() {
+        switchDisableSkipScreenshot = findViewById(R.id.switch_disable_skip_screenshot);
+        switchDimBehind = findViewById(R.id.switch_dim_behind);
+        switchNoFocus = findViewById(R.id.switch_no_focus);
+        switchMagicFlags = findViewById(R.id.switch_magic_flags);
+        switchHideRecentCard = findViewById(R.id.switch_hide_recent_card);
         switchWindowTitle = findViewById(R.id.switch_window_title);
-        editTitle = findViewById(R.id.edit_window_title);
+        editCustomTitle = findViewById(R.id.edit_custom_title);
+        spinnerTitleMode = findViewById(R.id.spinner_title_mode);
+        layoutTitlePicker = findViewById(R.id.layout_title_picker);
+        textGlobalHint = findViewById(R.id.text_global_hint);
 
-        // 初始化开关状态
-        List<String> enabled = configManager.getEnabledFeatures(packageName);
-        switchDisableSkipScreenshot.setChecked(enabled.contains("disable_skip_screenshot"));
-        switchDimBehind.setChecked(enabled.contains("FLAG_DIM_BEHIND_0"));
-        switchNoFocus.setChecked(enabled.contains("window_no_focus"));
-        switchMagicFlags.setChecked(enabled.contains("magic_flags"));
-        switchHideRecentCard.setChecked(enabled.contains("hide_recent_card"));
-
-        String savedTitle = configManager.getWindowTitle(packageName);
-        boolean hasTitle = !savedTitle.isEmpty();
-        switchWindowTitle.setChecked(hasTitle);
-        editTitle.setText(savedTitle);
-        editTitle.setEnabled(hasTitle);
-
-        // 开关监听
-        switchDisableSkipScreenshot.setOnCheckedChangeListener((buttonView, isChecked) ->
-                configManager.setFeatureEnabled(packageName, "disable_skip_screenshot", isChecked));
-        switchDimBehind.setOnCheckedChangeListener((buttonView, isChecked) ->
-                configManager.setFeatureEnabled(packageName, "FLAG_DIM_BEHIND_0", isChecked));
-        switchNoFocus.setOnCheckedChangeListener((buttonView, isChecked) ->
-                configManager.setFeatureEnabled(packageName, "window_no_focus", isChecked));
-        switchMagicFlags.setOnCheckedChangeListener((buttonView, isChecked) ->
-                configManager.setFeatureEnabled(packageName, "magic_flags", isChecked));
-        switchHideRecentCard.setOnCheckedChangeListener((buttonView, isChecked) ->
-                configManager.setFeatureEnabled(packageName, "hide_recent_card", isChecked));
-
-        // 标题开关与输入框联动
-        switchWindowTitle.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            editTitle.setEnabled(isChecked);
-            if (isChecked) {
-                String currentText = editTitle.getText().toString().trim();
-                if (!currentText.isEmpty()) {
-                    configManager.setWindowTitle(packageName, currentText);
-                } else {
-                    configManager.setWindowTitle(packageName, ""); // 稍后输入
-                }
-            } else {
-                editTitle.setText("");
-                configManager.setWindowTitle(packageName, "");
-            }
-        });
-
-        // 输入框失去焦点保存
-        editTitle.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus && switchWindowTitle.isChecked()) {
-                String title = editTitle.getText().toString().trim();
-                configManager.setWindowTitle(packageName, title);
-            }
-        });
-
-        // 启用左上角返回箭头
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        }
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, new String[]{"全局", "自定义"});
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerTitleMode.setAdapter(adapter);
     }
 
     private void setTopBarInfo() {
-        PackageManager pm = getPackageManager();
         try {
+            PackageManager pm = getPackageManager();
             ApplicationInfo appInfo = pm.getApplicationInfo(packageName, 0);
             Drawable icon = appInfo.loadIcon(pm);
             String label = appInfo.loadLabel(pm).toString();
@@ -119,8 +80,171 @@ public class ConfigActivity extends AppCompatActivity {
             tvLabel.setText(label);
             tvPackage.setText(packageName);
         } catch (PackageManager.NameNotFoundException e) {
-            finish(); // 应用不存在时退出
+            finish();
         }
+    }
+
+    @Override
+    public void onServiceChanged(XposedService svc) {
+        service = svc;
+        if (svc != null) {
+            loadConfig();
+            setupListeners();
+        }
+    }
+
+    private void loadConfig() {
+        if (service == null) return;
+        loading = true;
+        SharedPreferences prefs = service.getRemotePreferences(packageName.toLowerCase());
+        switchDisableSkipScreenshot.setChecked(prefs.contains("enable_skip_screenshot"));
+        switchDimBehind.setChecked(prefs.contains("FLAG_DIM_BEHIND_0"));
+        switchNoFocus.setChecked(prefs.contains("window_no_focus"));
+        switchMagicFlags.setChecked(prefs.contains("magic_flags"));
+        switchHideRecentCard.setChecked(prefs.contains("hide_recent_card"));
+
+        boolean titleEnabled = prefs.contains("window_title");
+        String savedTitle = prefs.getString("window_title", "");
+        switchWindowTitle.setChecked(titleEnabled);
+        setTitlePickerEnabled(titleEnabled);
+
+        if (titleEnabled) {
+            if (savedTitle.equals("$global")) {
+                spinnerTitleMode.setSelection(0, false);
+                editCustomTitle.setVisibility(View.GONE);
+                updateGlobalHint();
+            } else {
+                spinnerTitleMode.setSelection(1, false);
+                editCustomTitle.setVisibility(View.VISIBLE);
+                editCustomTitle.setText(savedTitle);
+                textGlobalHint.setVisibility(View.GONE);
+            }
+        } else {
+            spinnerTitleMode.setSelection(0, false);
+            editCustomTitle.setVisibility(View.GONE);
+            textGlobalHint.setVisibility(View.GONE);
+        }
+
+        loading = false;
+    }
+
+    private void updateGlobalHint() {
+        if (service == null) return;
+        String globalTitle = service.getRemotePreferences(GLOBAL_GROUP).getString(KEY_GLOBAL_TITLE, "");
+        if (globalTitle.isEmpty()) {
+            textGlobalHint.setText("未设置全局标题，请前往“设置”界面设置品牌");
+        } else {
+            textGlobalHint.setText("当前全局标题：" + globalTitle);
+        }
+        textGlobalHint.setVisibility(View.VISIBLE);
+    }
+
+    private void setTitlePickerEnabled(boolean enabled) {
+        layoutTitlePicker.setEnabled(enabled);
+        layoutTitlePicker.setAlpha(enabled ? 1.0f : 0.5f);
+        spinnerTitleMode.setEnabled(enabled);
+        editCustomTitle.setEnabled(enabled);
+        if (!enabled) {
+            editCustomTitle.setVisibility(View.GONE);
+            textGlobalHint.setVisibility(View.GONE);
+        }
+    }
+
+    private void setupListeners() {
+        switchDisableSkipScreenshot.setOnCheckedChangeListener((v, checked) -> {
+            if (!loading) saveToggle("enable_skip_screenshot", checked);
+        });
+        switchDimBehind.setOnCheckedChangeListener((v, checked) -> {
+            if (!loading) saveToggle("FLAG_DIM_BEHIND_0", checked);
+        });
+        switchNoFocus.setOnCheckedChangeListener((v, checked) -> {
+            if (!loading) saveToggle("window_no_focus", checked);
+        });
+        switchMagicFlags.setOnCheckedChangeListener((v, checked) -> {
+            if (!loading) saveToggle("magic_flags", checked);
+        });
+        switchHideRecentCard.setOnCheckedChangeListener((v, checked) -> {
+            if (!loading) saveToggle("hide_recent_card", checked);
+        });
+
+        switchWindowTitle.setOnCheckedChangeListener((v, checked) -> {
+            setTitlePickerEnabled(checked);
+            if (loading) return;
+            if (checked) {
+                saveWindowTitle("$global");
+                spinnerTitleMode.setSelection(0, false);
+                editCustomTitle.setVisibility(View.GONE);
+                updateGlobalHint();
+            } else {
+                saveWindowTitle(null);
+            }
+        });
+
+        spinnerTitleMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (loading) return;
+                if (position == 0) {
+                    editCustomTitle.setVisibility(View.GONE);
+                    saveWindowTitle("$global");
+                    updateGlobalHint();
+                } else {
+                    editCustomTitle.setVisibility(View.VISIBLE);
+                    editCustomTitle.requestFocus();
+                    String custom = editCustomTitle.getText().toString().trim();
+                    if (custom.isEmpty()) {
+                        spinnerTitleMode.setSelection(0, false);
+                        Toast.makeText(ConfigActivity.this, "自定义标题不能为空，已切回全局", Toast.LENGTH_SHORT).show();
+                        saveWindowTitle("$global");
+                        updateGlobalHint();
+                    } else {
+                        saveWindowTitle(custom);
+                        textGlobalHint.setVisibility(View.GONE);
+                    }
+                }
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        editCustomTitle.setOnFocusChangeListener((v, hasFocus) -> {
+            if (!hasFocus && spinnerTitleMode.getSelectedItemPosition() == 1 && switchWindowTitle.isChecked()) {
+                String custom = editCustomTitle.getText().toString().trim();
+                if (custom.isEmpty()) {
+                    spinnerTitleMode.setSelection(0, false);
+                    saveWindowTitle("$global");
+                    updateGlobalHint();
+                } else {
+                    saveWindowTitle(custom);
+                }
+            }
+        });
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
+    }
+
+    private void saveWindowTitle(String value) {
+        if (service == null) return;
+        SharedPreferences.Editor editor = service.getRemotePreferences(packageName.toLowerCase()).edit();
+        if (value == null) {
+            editor.remove("window_title");
+        } else {
+            editor.putString("window_title", value);
+        }
+        editor.apply();
+    }
+
+    private void saveToggle(String key, boolean enable) {
+        if (service == null) return;
+        SharedPreferences.Editor editor = service.getRemotePreferences(packageName.toLowerCase()).edit();
+        if (enable) {
+            editor.putBoolean(key, true);
+        } else {
+            editor.remove(key);
+        }
+        editor.apply();
     }
 
     @Override
@@ -135,10 +259,18 @@ public class ConfigActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        // 离开时确保保存标题
-        if (switchWindowTitle.isChecked()) {
-            String title = editTitle.getText().toString().trim();
-            configManager.setWindowTitle(packageName, title);
+        if (service != null && switchWindowTitle.isChecked()
+                && spinnerTitleMode.getSelectedItemPosition() == 1) {
+            String custom = editCustomTitle.getText().toString().trim();
+            if (!custom.isEmpty()) {
+                saveWindowTitle(custom);
+            }
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        App.removeListener(this);
     }
 }
