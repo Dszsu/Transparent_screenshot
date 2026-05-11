@@ -3,7 +3,6 @@ package com.dszsu.tss;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
-import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -26,10 +25,9 @@ public class AppListRepository {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private volatile List<AppInfo> allApps = Collections.emptyList();
-    private volatile Set<String> scopeSet = Collections.emptySet();
-    private volatile Set<String> configuredSet = Collections.emptySet();
     private volatile boolean isLoading = false;
 
+    // 系统关键进程
     private static final Set<String> SYSTEM_CRITICAL = new HashSet<>();
     static {
         SYSTEM_CRITICAL.add("android");
@@ -62,7 +60,6 @@ public class AppListRepository {
                 List<String> rawScope = service != null ? service.getScope() : null;
                 Set<String> scope = new HashSet<>();
                 if (rawScope != null) for (String s : rawScope) scope.add(s.toLowerCase());
-                scopeSet = scope;
 
                 // 全量应用
                 List<ApplicationInfo> installed = pm.getInstalledApplications(PackageManager.GET_META_DATA);
@@ -77,51 +74,54 @@ public class AppListRepository {
                     apps.add(new AppInfo(
                             app.loadLabel(pm).toString(),
                             pkg,
-                            null,
                             inScope,
                             false,
                             critical
                     ));
                 }
 
-                // 添加作用域中但未出现的系统关键虚拟包（如 system）
+                // 添加作用域中未出现的系统关键虚拟包（如 system）
                 for (String scopePkg : scope) {
                     String lower = scopePkg.toLowerCase();
                     if (!seenPackages.contains(lower) && isSystemCritical(lower)) {
                         if ("system".equals(lower)) {
-                            // system 虚拟包：显示为“系统框架”，图标使用 android 应用的图标
-                            Drawable icon = null;
+                            String label = "系统框架";
                             try {
                                 ApplicationInfo androidApp = pm.getApplicationInfo("android", 0);
-                                icon = androidApp.loadIcon(pm);
+                                label = androidApp.loadLabel(pm).toString();
                             } catch (PackageManager.NameNotFoundException ignored) {}
-                            apps.add(new AppInfo("系统框架", lower, icon, true, false, true));
+                            apps.add(new AppInfo(label, lower, true, false, true));
                         } else {
-                            apps.add(new AppInfo(lower, lower, null, true, false, true));
+                            apps.add(new AppInfo(lower, lower, true, false, true));
                         }
                     }
                 }
 
-                Collections.sort(apps, Comparator.comparing(a -> a.getLabel().toLowerCase()));
+                apps.sort(Comparator.comparing(a -> a.getLabel().toLowerCase()));
                 allApps = apps;
 
-                // 查询已配置
+                // 批量查询已配置状态
                 Set<String> configured = new HashSet<>();
                 if (service != null) {
                     for (AppInfo info : apps) {
                         try {
                             SharedPreferences prefs = service.getRemotePreferences(info.getPackageName().toLowerCase());
-                            if (!prefs.getAll().isEmpty()) configured.add(info.getPackageName().toLowerCase());
+                            if (!prefs.getAll().isEmpty()) {
+                                configured.add(info.getPackageName().toLowerCase());
+                            }
                         } catch (Throwable ignored) {}
                     }
                 }
-                configuredSet = configured;
 
+                // 更新标记
                 for (AppInfo info : apps) {
-                    if (configured.contains(info.getPackageName().toLowerCase())) info.setHasConfig(true);
+                    if (configured.contains(info.getPackageName().toLowerCase())) {
+                        info.setHasConfig(true);
+                    }
                 }
 
-                List<AppInfo> filtered = filterApps(apps, scope, configured, "");
+                // 过滤（作用域内 或 已配置）
+                List<AppInfo> filtered = filterApps(apps, "");
                 mainHandler.post(() -> {
                     isLoading = false;
                     notifyLoading(listener, false);
@@ -138,10 +138,10 @@ public class AppListRepository {
     }
 
     public List<AppInfo> filterApps(String searchQuery) {
-        return filterApps(allApps, scopeSet, configuredSet, searchQuery);
+        return filterApps(allApps, searchQuery);
     }
 
-    private List<AppInfo> filterApps(List<AppInfo> apps, Set<String> scope, Set<String> configured, String search) {
+    private List<AppInfo> filterApps(List<AppInfo> apps, String search) {
         List<AppInfo> result = new ArrayList<>();
         String lowerSearch = search.toLowerCase().trim();
         for (AppInfo info : apps) {

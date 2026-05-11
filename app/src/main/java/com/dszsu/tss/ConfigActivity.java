@@ -5,6 +5,8 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
@@ -13,7 +15,6 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -31,6 +32,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
     private Spinner spinnerTitleMode;
     private View layoutTitlePicker;
     private TextView textGlobalHint;
+    private TextView textWebViewHint;   // 新增
     private boolean loading = false;
 
     private static final String GLOBAL_GROUP = "global";
@@ -60,6 +62,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         spinnerTitleMode = findViewById(R.id.spinner_title_mode);
         layoutTitlePicker = findViewById(R.id.layout_title_picker);
         textGlobalHint = findViewById(R.id.text_global_hint);
+        textWebViewHint = findViewById(R.id.text_webview_hint);   // 新增
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, new String[]{"全局", "自定义"});
@@ -125,6 +128,11 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
             textGlobalHint.setVisibility(View.GONE);
         }
 
+        // 设置 WebView 提示的可见性
+        if (textWebViewHint != null) {
+            textWebViewHint.setVisibility(titleEnabled ? View.VISIBLE : View.GONE);
+        }
+
         loading = false;
     }
 
@@ -132,9 +140,9 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         if (service == null) return;
         String globalTitle = service.getRemotePreferences(GLOBAL_GROUP).getString(KEY_GLOBAL_TITLE, "");
         if (globalTitle.isEmpty()) {
-            textGlobalHint.setText("未设置全局标题，请前往“设置”界面设置品牌");
+            textGlobalHint.setText(getString(R.string.global_title_not_set));
         } else {
-            textGlobalHint.setText("当前全局标题：" + globalTitle);
+            textGlobalHint.setText(getString(R.string.current_global_title, globalTitle));
         }
         textGlobalHint.setVisibility(View.VISIBLE);
     }
@@ -169,6 +177,10 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
 
         switchWindowTitle.setOnCheckedChangeListener((v, checked) -> {
             setTitlePickerEnabled(checked);
+            // 控制 WebView 提示可见性
+            if (textWebViewHint != null) {
+                textWebViewHint.setVisibility(checked ? View.VISIBLE : View.GONE);
+            }
             if (loading) return;
             if (checked) {
                 saveWindowTitle("$global");
@@ -191,33 +203,26 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
                 } else {
                     editCustomTitle.setVisibility(View.VISIBLE);
                     editCustomTitle.requestFocus();
-                    String custom = editCustomTitle.getText().toString().trim();
-                    if (custom.isEmpty()) {
-                        spinnerTitleMode.setSelection(0, false);
-                        Toast.makeText(ConfigActivity.this, "自定义标题不能为空，已切回全局", Toast.LENGTH_SHORT).show();
-                        saveWindowTitle("$global");
-                        updateGlobalHint();
-                    } else {
-                        saveWindowTitle(custom);
-                        textGlobalHint.setVisibility(View.GONE);
-                    }
+                    textGlobalHint.setVisibility(View.GONE);
+                    saveWindowTitle(editCustomTitle.getText().toString().trim());
                 }
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
 
-        editCustomTitle.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus && spinnerTitleMode.getSelectedItemPosition() == 1 && switchWindowTitle.isChecked()) {
-                String custom = editCustomTitle.getText().toString().trim();
-                if (custom.isEmpty()) {
-                    spinnerTitleMode.setSelection(0, false);
-                    saveWindowTitle("$global");
-                    updateGlobalHint();
-                } else {
-                    saveWindowTitle(custom);
+        editCustomTitle.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (loading) return;
+                if (spinnerTitleMode.getSelectedItemPosition() == 1 && switchWindowTitle.isChecked()) {
+                    saveWindowTitle(s.toString().trim());
                 }
             }
+            @Override
+            public void afterTextChanged(Editable s) {}
         });
 
         if (getSupportActionBar() != null) {
@@ -259,13 +264,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
     @Override
     protected void onPause() {
         super.onPause();
-        if (service != null && switchWindowTitle.isChecked()
-                && spinnerTitleMode.getSelectedItemPosition() == 1) {
-            String custom = editCustomTitle.getText().toString().trim();
-            if (!custom.isEmpty()) {
-                saveWindowTitle(custom);
-            }
-        }
     }
 
     @Override

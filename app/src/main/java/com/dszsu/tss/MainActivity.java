@@ -31,7 +31,7 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
     private String currentSearch = "";
 
     private static final Set<String> SYSTEM_CRITICAL_PACKAGES = new HashSet<>(Arrays.asList(
-            "android", "system", "com.android.systemui", "oplus"
+            "android", "system", "com.android.systemui"
     ));
 
     @Override

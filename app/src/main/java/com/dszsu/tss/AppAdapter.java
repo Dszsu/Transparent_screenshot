@@ -61,18 +61,17 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         holder.binding.tvLabel.setText(app.getLabel());
         holder.binding.tvPackage.setText(app.getPackageName());
 
-        // 获取默认文字颜色（跟随主题）
         TypedValue typedValue = new TypedValue();
         holder.itemView.getContext().getTheme().resolveAttribute(android.R.attr.textColorPrimary, typedValue, true);
         int defaultTextColor = typedValue.data;
 
         if (app.isSystemCritical()) {
-            holder.binding.tvLabel.setText(app.getLabel() + "（必须取消作用域）");
-            holder.binding.tvLabel.setTextColor(android.graphics.Color.RED); // 红色可辨
+            holder.binding.tvLabel.setText(String.format("%s（必须取消作用域）", app.getLabel()));
+            holder.binding.tvLabel.setTextColor(android.graphics.Color.RED);
             loadCriticalIcon(app, holder);
         } else {
             if (!app.isInScope() && app.isShowConfig()) {
-                holder.binding.tvLabel.setTextColor(android.graphics.Color.GREEN); // 绿色可辨
+                holder.binding.tvLabel.setTextColor(android.graphics.Color.GREEN);
             } else {
                 holder.binding.tvLabel.setTextColor(defaultTextColor);
             }
@@ -146,7 +145,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         }
     }
 
-    private static final DiffUtil.ItemCallback<AppInfo> DIFF_CALLBACK = new DiffUtil.ItemCallback<AppInfo>() {
+    private static final DiffUtil.ItemCallback<AppInfo> DIFF_CALLBACK = new DiffUtil.ItemCallback<>() {
         @Override
         public boolean areItemsTheSame(@NonNull AppInfo oldItem, @NonNull AppInfo newItem) {
             return oldItem.getPackageName().equals(newItem.getPackageName());

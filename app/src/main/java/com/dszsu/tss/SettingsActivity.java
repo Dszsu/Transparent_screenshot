@@ -1,8 +1,9 @@
 package com.dszsu.tss;
 
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
@@ -23,6 +24,7 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
     private static final String[] BRAND_LABELS = {
             "OPPO/一加/真我", "小米/红米", "三星", "华为EMUI", "Vivo", "魅族", "自定义"
     };
+    @SuppressWarnings("SpellCheckingInspection")
     private static final String[] BRAND_VALUES = {
             "com.oplus.screenrecorder.FloatView", "com.miui.screenrecorder",
             "com.samsung.android.app.screenrecorder", "ScreenRecoderTimer",
@@ -33,15 +35,6 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
-
-        // 状态栏白色
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            getWindow().setStatusBarColor(android.graphics.Color.WHITE);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                getWindow().getDecorView().setSystemUiVisibility(
-                        getWindow().getDecorView().getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
-        }
 
         spinnerBrand = findViewById(R.id.spinner_brand);
         editCustom = findViewById(R.id.edit_custom);
@@ -107,10 +100,19 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
             public void onNothingSelected(AdapterView<?> parent) {}
         });
 
-        editCustom.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus && spinnerBrand.getSelectedItemPosition() == BRAND_VALUES.length - 1) {
-                saveGlobalTitle(editCustom.getText().toString().trim());
+        editCustom.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // 实时保存自定义标题
+                if (loading) return;
+                if (spinnerBrand.getSelectedItemPosition() == BRAND_VALUES.length - 1) {
+                    saveGlobalTitle(s.toString().trim());
+                }
             }
+            @Override
+            public void afterTextChanged(Editable s) {}
         });
     }
 

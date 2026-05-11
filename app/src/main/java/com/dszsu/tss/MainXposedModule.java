@@ -19,7 +19,6 @@ import java.util.WeakHashMap;
 
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
-import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam;
 
 public class MainXposedModule extends XposedModule {
 
