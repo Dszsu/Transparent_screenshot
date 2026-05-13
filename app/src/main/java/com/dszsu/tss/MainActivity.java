@@ -1,11 +1,14 @@
 package com.dszsu.tss;
 
 import android.content.Intent;
+import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.webkit.WebView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -15,6 +18,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.dszsu.tss.databinding.ActivityMainBinding;
 
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -31,7 +35,7 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
     private String currentSearch = "";
 
     private static final Set<String> SYSTEM_CRITICAL_PACKAGES = new HashSet<>(Arrays.asList(
-            "android", "system", "com.android.systemui"
+            "android", "system", "com.android.systemui", "oplus", "com.oplus", "com.coloros", "com.oppo", "com.oneplus"
     ));
 
     @Override
@@ -64,7 +68,6 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
         binding.searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) { return false; }
-
             @Override
             public boolean onQueryTextChange(String newText) {
                 currentSearch = newText;
@@ -82,9 +85,51 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
         if (svc != null) {
             AppListRepository.getInstance().refreshData(svc, getPackageManager(), this);
             checkScopeWarning(svc.getScope());
+            detectAndSaveWebViewPackage(svc);
         }
     }
 
+    /**
+     * 检测系统当前 WebView 包名，保存到 global 配置（不请求作用域）
+     */
+    private void detectAndSaveWebViewPackage(XposedService svc) {
+        String webviewPkg = null;
+        try {
+            PackageInfo pi = WebView.getCurrentWebViewPackage();
+            if (pi != null && pi.packageName != null) {
+                webviewPkg = pi.packageName;
+            }
+        } catch (Throwable ignored) {}
+        if (webviewPkg == null) {
+            try {
+                Class<?> factoryClass = Class.forName("android.webkit.WebViewFactory");
+                Method method = factoryClass.getMethod("getLoadedPackageInfo");
+                PackageInfo pi = (PackageInfo) method.invoke(null);
+                if (pi != null && pi.packageName != null) {
+                    webviewPkg = pi.packageName;
+                }
+            } catch (Throwable ignored) {}
+        }
+        if (webviewPkg == null) {
+            try {
+                Class<?> spClass = Class.forName("android.os.SystemProperties");
+                Method get = spClass.getMethod("get", String.class, String.class);
+                String pkg = (String) get.invoke(null, "persist.sys.webview.packagename", "");
+                if (!pkg.isEmpty()) {
+                    webviewPkg = pkg;
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        if (webviewPkg != null) {
+            svc.getRemotePreferences("global").edit().putString("webview_package", webviewPkg).apply();
+            Log.i("TransScreenshot", "WebView package saved: " + webviewPkg);
+        } else {
+            Log.w("TransScreenshot", "Unable to detect WebView package");
+        }
+    }
+
+    // --- 以下方法保持不变 ---
     @Override
     public void onRefreshComplete(List<AppInfo> filteredList) {
         adapter.submitList(filteredList);

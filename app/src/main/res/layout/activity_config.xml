@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground"
@@ -10,162 +11,258 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp"
-        android:background="?android:attr/colorBackground">
+        android:padding="12dp"
+        android:background="?android:attr/colorBackground"
+        android:clipToPadding="false">
 
         <!-- 顶部应用信息栏 -->
-        <LinearLayout
+        <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:padding="8dp"
-            android:clickable="false">
+            android:layout_marginHorizontal="4dp"
+            android:background="?attr/colorSurface"
+            app:cardElevation="2dp"
+            app:cardCornerRadius="12dp">
 
-            <ImageView
-                android:id="@+id/iv_app_icon"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="12dp"
-                android:contentDescription="@string/appicon" />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tv_app_label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="16sp"
-                    android:textColor="?android:attr/textColorPrimary" />
-
-                <TextView
-                    android:id="@+id/tv_app_package"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="14sp"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:layout_marginTop="2dp" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="?android:attr/listDivider"
-            android:layout_marginVertical="12dp" />
-
-        <!-- 功能开关列表（带分割线） -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:divider="?android:attr/listDivider"
-            android:showDividers="middle">
-
-            <!-- 1. 禁用 skipScreenshot + 说明 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="12dp"
+                android:clickable="false">
 
-                <LinearLayout style="@style/ConfigItemRow">
-                    <TextView style="@style/ConfigItemLabel" android:text="@string/skipscreenshot" />
+                <ImageView
+                    android:id="@+id/iv_app_icon"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="12dp"
+                    android:contentDescription="@string/appicon"
+                    android:importantForAccessibility="no" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tv_app_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="16sp"
+                        android:textColor="?android:attr/textColorPrimary" />
+
+                    <TextView
+                        android:id="@+id/tv_app_package"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="14sp"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 1. 启用窗口隐藏方案1 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:layout_marginHorizontal="4dp"
+            android:background="?attr/colorSurface"
+            app:cardElevation="2dp"
+            app:cardCornerRadius="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textSize="16sp"
+                        android:text="@string/skipscreenshot"
+                        android:textColor="?android:attr/textColorPrimary" />
+
                     <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/switch_disable_skip_screenshot"
-                        style="@style/ConfigItemSwitch" />
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:importantForAccessibility="no" />
                 </LinearLayout>
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/desc_skip_screenshot"
                     android:textSize="12sp"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:layout_marginTop="-18dp"
-                    android:layout_marginBottom="2dp" />
+                    android:textColor="@color/desc_text_gray"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:layout_marginTop="-10dp" />
             </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
-            <!-- 2. 去除阴影遮罩（无说明） -->
-            <LinearLayout style="@style/ConfigItemRow">
-                <TextView style="@style/ConfigItemLabel" android:text="@string/dim0" />
+        <!-- 2. 去除阴影遮罩 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginHorizontal="4dp"
+            android:background="?attr/colorSurface"
+            app:cardElevation="2dp"
+            app:cardCornerRadius="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="16sp"
+                    android:text="@string/dim0"
+                    android:textColor="?android:attr/textColorPrimary" />
+
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/switch_dim_behind"
-                    style="@style/ConfigItemSwitch" />
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:importantForAccessibility="no" />
             </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
-            <!-- 3. 窗口不获取焦点 + 说明 -->
+        <!-- 3. 绕过焦点检查 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginHorizontal="4dp"
+            android:background="?attr/colorSurface"
+            app:cardElevation="2dp"
+            app:cardCornerRadius="12dp">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="12dp">
 
-                <LinearLayout style="@style/ConfigItemRow">
-                    <TextView style="@style/ConfigItemLabel" android:text="@string/no_focus" />
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/switch_no_focus"
-                        style="@style/ConfigItemSwitch" />
-                </LinearLayout>
-                <TextView
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/desc_no_focus"
-                    android:textSize="12sp"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:layout_marginTop="-18dp"
-                    android:layout_marginBottom="2dp" />
-            </LinearLayout>
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
-            <!-- 4. 启用 MagicFlags + 说明 -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textSize="16sp"
+                        android:text="@string/magicflags"
+                        android:textColor="?android:attr/textColorPrimary" />
 
-                <LinearLayout style="@style/ConfigItemRow">
-                    <TextView style="@style/ConfigItemLabel" android:text="@string/magicflags" />
                     <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/switch_magic_flags"
-                        style="@style/ConfigItemSwitch" />
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:importantForAccessibility="no" />
                 </LinearLayout>
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/desc_magic_flags"
                     android:textSize="12sp"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:layout_marginTop="-18dp"
-                    android:layout_marginBottom="2dp" />
+                    android:textColor="@color/desc_text_gray"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:layout_marginTop="-10dp" />
             </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
-            <!-- 5. 隐藏后台卡片（无说明） -->
-            <LinearLayout style="@style/ConfigItemRow">
-                <TextView style="@style/ConfigItemLabel" android:text="@string/card" />
+        <!-- 4. 隐藏最近任务界面 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginHorizontal="4dp"
+            android:background="?attr/colorSurface"
+            app:cardElevation="2dp"
+            app:cardCornerRadius="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="16sp"
+                    android:text="@string/card"
+                    android:textColor="?android:attr/textColorPrimary" />
+
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/switch_hide_recent_card"
-                    style="@style/ConfigItemSwitch" />
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:importantForAccessibility="no" />
             </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
-            <!-- 6. 窗口标题 开关 + 说明 + 选择器 -->
+        <!-- 5. 窗口标题 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginHorizontal="4dp"
+            android:background="?attr/colorSurface"
+            app:cardElevation="2dp"
+            app:cardCornerRadius="12dp">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingVertical="8dp">
+                android:padding="12dp">
 
-                <LinearLayout style="@style/ConfigItemRow">
-                    <TextView style="@style/ConfigItemLabel" android:text="@string/title" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textSize="16sp"
+                        android:text="@string/title"
+                        android:textColor="?android:attr/textColorPrimary" />
+
                     <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/switch_window_title"
-                        style="@style/ConfigItemSwitch" />
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:importantForAccessibility="no" />
                 </LinearLayout>
 
                 <TextView
@@ -173,11 +270,10 @@
                     android:layout_height="wrap_content"
                     android:text="@string/desc_window_title"
                     android:textSize="12sp"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:layout_marginTop="-18dp"
-                    android:layout_marginBottom="2dp" />
+                    android:textColor="@color/desc_text_gray"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:layout_marginTop="-10dp" />
 
                 <LinearLayout
                     android:id="@+id/layout_title_picker"
@@ -190,14 +286,20 @@
                     <Spinner
                         android:id="@+id/spinner_title_mode"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/spinner_background"
+                        android:popupBackground="@drawable/popup_background"
+                        android:dropDownVerticalOffset="8dp"
+                        android:padding="12dp" />
 
                     <TextView
                         android:id="@+id/text_global_hint"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:textSize="14sp"
-                        android:textColor="?android:attr/textColorSecondary"
+                        android:textColor="@color/desc_text_gray"
                         android:layout_marginTop="8dp"
                         android:visibility="gone" />
 
@@ -213,18 +315,18 @@
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
             </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
-            <!-- WebView 提示（受标题开关控制） -->
-            <TextView
-                android:id="@+id/text_webview_hint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/webview_hint"
-                android:textSize="12sp"
-                android:textColor="?android:attr/textColorSecondary"
-                android:visibility="gone"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp" />
-        </LinearLayout>
+        <!-- WebView 提示（暗黄色） -->
+        <TextView
+            android:id="@+id/text_webview_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/webview_hint"
+            android:textSize="12sp"
+            android:textColor="#FFB8860B"
+            android:visibility="gone"
+            android:layout_marginTop="12dp"
+            android:layout_marginHorizontal="4dp" />
     </LinearLayout>
 </ScrollView>

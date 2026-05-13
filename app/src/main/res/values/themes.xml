@@ -10,24 +10,7 @@
         <item name="android:textColorSecondary">@android:color/darker_gray</item>
         <item name="android:colorBackground">@android:color/white</item>
         <item name="colorSurface">@android:color/white</item>
-    </style>
-
-    <style name="ConfigItemRow">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:orientation">horizontal</item>
-        <item name="android:gravity">center_vertical</item>
-        <item name="android:paddingVertical">12dp</item>
-        <item name="android:paddingHorizontal">8dp</item>
-    </style>
-    <style name="ConfigItemLabel">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:textSize">16sp</item>
-    </style>
-    <style name="ConfigItemSwitch">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
+        <item name="popupTheme">@style/ThemeOverlay.MaterialComponents</item>
+        <item name="actionOverflowMenuStyle">@style/OverflowMenuStyle</item>
     </style>
 </resources>

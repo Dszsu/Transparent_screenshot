@@ -10,5 +10,7 @@
         <item name="android:textColorSecondary">#B3FFFFFF</item>
         <item name="android:colorBackground">#FF212121</item>
         <item name="colorSurface">#FF212121</item>
+        <item name="popupTheme">@style/ThemeOverlay.MaterialComponents</item>
+        <item name="actionOverflowMenuStyle">@style/OverflowMenuStyle</item>
     </style>
 </resources>

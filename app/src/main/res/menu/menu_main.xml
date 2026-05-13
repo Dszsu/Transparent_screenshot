@@ -4,11 +4,11 @@
 
     <item
         android:id="@+id/action_settings"
-        android:title="@string/setting"
+        android:title="设置"
         app:showAsAction="never" />
 
     <item
         android:id="@+id/action_open_homepage"
-        android:title="@string/github_home"
+        android:title="模块主页"
         app:showAsAction="never" />
 </menu>

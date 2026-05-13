@@ -2,16 +2,16 @@ package com.dszsu.tss;
 
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.Spinner;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import io.github.libxposed.service.XposedService;
 
 public class SettingsActivity extends AppCompatActivity implements App.ServiceListener {
@@ -19,12 +19,13 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
     private XposedService service;
     private Spinner spinnerBrand;
     private EditText editCustom;
+    private View customTitleLayout;
+    private SwitchCompat switchWebviewShowWallpaper;
     private boolean loading = false;
 
     private static final String[] BRAND_LABELS = {
             "OPPO/一加/真我", "小米/红米", "三星", "华为EMUI", "Vivo", "魅族", "自定义"
     };
-    @SuppressWarnings("SpellCheckingInspection")
     private static final String[] BRAND_VALUES = {
             "com.oplus.screenrecorder.FloatView", "com.miui.screenrecorder",
             "com.samsung.android.app.screenrecorder", "ScreenRecoderTimer",
@@ -38,6 +39,8 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
 
         spinnerBrand = findViewById(R.id.spinner_brand);
         editCustom = findViewById(R.id.edit_custom);
+        customTitleLayout = findViewById(R.id.custom_title_layout);
+        switchWebviewShowWallpaper = findViewById(R.id.switch_webview_show_wallpaper);
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, BRAND_LABELS);
@@ -64,6 +67,8 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
         if (service == null) return;
         loading = true;
         SharedPreferences globalPrefs = service.getRemotePreferences("global");
+
+        // 品牌选择
         String savedTitle = globalPrefs.getString("title", "");
         int pos = -1;
         for (int i = 0; i < BRAND_VALUES.length - 1; i++) {
@@ -75,11 +80,16 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
         if (pos >= 0) {
             spinnerBrand.setSelection(pos, false);
             editCustom.setVisibility(View.GONE);
+            customTitleLayout.setVisibility(View.GONE);
         } else {
             spinnerBrand.setSelection(BRAND_VALUES.length - 1, false);
-            editCustom.setVisibility(View.VISIBLE);
             editCustom.setText(savedTitle);
+            customTitleLayout.setVisibility(View.VISIBLE);
+            editCustom.setVisibility(View.VISIBLE);
         }
+
+        // WebView 壁纸开关
+        switchWebviewShowWallpaper.setChecked(globalPrefs.getBoolean("webview_show_wallpaper", false));
         loading = false;
     }
 
@@ -90,9 +100,11 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                 if (loading) return;
                 if (position == BRAND_VALUES.length - 1) {
                     editCustom.setVisibility(View.VISIBLE);
+                    customTitleLayout.setVisibility(View.VISIBLE);
                     editCustom.requestFocus();
                 } else {
                     editCustom.setVisibility(View.GONE);
+                    customTitleLayout.setVisibility(View.GONE);
                     saveGlobalTitle(BRAND_VALUES[position]);
                 }
             }
@@ -100,19 +112,18 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
             public void onNothingSelected(AdapterView<?> parent) {}
         });
 
-        editCustom.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                // 实时保存自定义标题
-                if (loading) return;
-                if (spinnerBrand.getSelectedItemPosition() == BRAND_VALUES.length - 1) {
-                    saveGlobalTitle(s.toString().trim());
-                }
+        editCustom.setOnFocusChangeListener((v, hasFocus) -> {
+            if (!hasFocus && spinnerBrand.getSelectedItemPosition() == BRAND_VALUES.length - 1) {
+                saveGlobalTitle(editCustom.getText().toString().trim());
             }
-            @Override
-            public void afterTextChanged(Editable s) {}
+        });
+
+        switchWebviewShowWallpaper.setOnCheckedChangeListener((v, isChecked) -> {
+            if (loading) return;
+            if (service != null) {
+                service.getRemotePreferences("global").edit().putBoolean("webview_show_wallpaper", isChecked).apply();
+                Toast.makeText(SettingsActivity.this, "已更新 WebView 壁纸设置", Toast.LENGTH_SHORT).show();
+            }
         });
     }
 

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -14,7 +15,10 @@
         android:background="?android:attr/colorBackground"
         android:theme="?attr/actionBarTheme"
         app:title=""
-        app:contentInsetStartWithNavigation="0dp">
+        app:contentInsetStartWithNavigation="0dp"
+        tools:ignore="ExtraText">
+        android:theme="@style/ThemeOverlay.MaterialComponents.Toolbar.Popup"
+        app:popupTheme="@style/ThemeOverlay.MaterialComponents" />
 
         <androidx.appcompat.widget.SearchView
             android:id="@+id/searchView"

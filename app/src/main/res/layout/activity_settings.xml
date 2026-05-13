@@ -1,32 +1,110 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
     android:background="?android:attr/colorBackground"
     android:fitsSystemWindows="true">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/global_title"
-        android:textSize="18sp"
-        android:textColor="?android:attr/textColorPrimary"
-        android:layout_marginBottom="16dp" />
-
-    <Spinner
-        android:id="@+id/spinner_brand"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
-
-    <EditText
-        android:id="@+id/edit_custom"
+    <!-- 卡片1：品牌选择 + 说明文字 -->
+    <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/user_title_name"
-        android:layout_marginTop="12dp"
-        android:visibility="gone"
-        android:inputType="textCapSentences"
-        android:autofillHints="no" />
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="32dp"
+        android:layout_marginBottom="12dp"
+        app:cardElevation="2dp"
+        app:cardCornerRadius="12dp"
+        android:background="?attr/colorSurface">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/global_title"
+                android:textAppearance="?attr/textAppearanceHeadline6"
+                android:textColor="?android:attr/textColorPrimary" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/gl_title"
+                android:textAppearance="?attr/textAppearanceBody2"
+                android:textColor="?android:attr/textColorSecondary"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="16dp" />
+
+            <Spinner
+                android:id="@+id/spinner_brand"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:background="@drawable/spinner_background"
+                android:popupBackground="@drawable/popup_background"
+                android:dropDownVerticalOffset="8dp"
+                android:padding="12dp" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/custom_title_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:visibility="gone"
+                app:hintEnabled="true"
+                android:hint="@string/set_title"
+                app:boxStrokeColor="?attr/colorPrimary"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/edit_custom"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textCapSentences"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- 卡片2：WebView 壁纸开关 -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginBottom="24dp"
+        app:cardElevation="2dp"
+        app:cardCornerRadius="12dp"
+        android:background="?attr/colorSurface">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="16sp"
+                android:text="@string/webview_show_wallpaper"
+                android:textColor="?android:attr/textColorPrimary" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_webview_show_wallpaper"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
 </LinearLayout>

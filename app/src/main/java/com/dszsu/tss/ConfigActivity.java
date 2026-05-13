@@ -26,13 +26,12 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
 
     private String packageName;
     private XposedService service;
-    private SwitchCompat switchDisableSkipScreenshot, switchDimBehind, switchNoFocus,
+    private SwitchCompat switchDisableSkipScreenshot, switchDimBehind,
             switchMagicFlags, switchHideRecentCard, switchWindowTitle;
     private EditText editCustomTitle;
     private Spinner spinnerTitleMode;
     private View layoutTitlePicker;
-    private TextView textGlobalHint;
-    private TextView textWebViewHint;   // 新增
+    private TextView textGlobalHint, textWebViewHint;
     private boolean loading = false;
 
     private static final String GLOBAL_GROUP = "global";
@@ -54,7 +53,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
     private void bindViews() {
         switchDisableSkipScreenshot = findViewById(R.id.switch_disable_skip_screenshot);
         switchDimBehind = findViewById(R.id.switch_dim_behind);
-        switchNoFocus = findViewById(R.id.switch_no_focus);
         switchMagicFlags = findViewById(R.id.switch_magic_flags);
         switchHideRecentCard = findViewById(R.id.switch_hide_recent_card);
         switchWindowTitle = findViewById(R.id.switch_window_title);
@@ -62,7 +60,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         spinnerTitleMode = findViewById(R.id.spinner_title_mode);
         layoutTitlePicker = findViewById(R.id.layout_title_picker);
         textGlobalHint = findViewById(R.id.text_global_hint);
-        textWebViewHint = findViewById(R.id.text_webview_hint);   // 新增
+        textWebViewHint = findViewById(R.id.text_webview_hint);
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, new String[]{"全局", "自定义"});
@@ -102,7 +100,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         SharedPreferences prefs = service.getRemotePreferences(packageName.toLowerCase());
         switchDisableSkipScreenshot.setChecked(prefs.contains("enable_skip_screenshot"));
         switchDimBehind.setChecked(prefs.contains("FLAG_DIM_BEHIND_0"));
-        switchNoFocus.setChecked(prefs.contains("window_no_focus"));
         switchMagicFlags.setChecked(prefs.contains("magic_flags"));
         switchHideRecentCard.setChecked(prefs.contains("hide_recent_card"));
 
@@ -128,7 +125,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
             textGlobalHint.setVisibility(View.GONE);
         }
 
-        // 设置 WebView 提示的可见性
         if (textWebViewHint != null) {
             textWebViewHint.setVisibility(titleEnabled ? View.VISIBLE : View.GONE);
         }
@@ -165,9 +161,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         switchDimBehind.setOnCheckedChangeListener((v, checked) -> {
             if (!loading) saveToggle("FLAG_DIM_BEHIND_0", checked);
         });
-        switchNoFocus.setOnCheckedChangeListener((v, checked) -> {
-            if (!loading) saveToggle("window_no_focus", checked);
-        });
         switchMagicFlags.setOnCheckedChangeListener((v, checked) -> {
             if (!loading) saveToggle("magic_flags", checked);
         });
@@ -177,7 +170,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
 
         switchWindowTitle.setOnCheckedChangeListener((v, checked) -> {
             setTitlePickerEnabled(checked);
-            // 控制 WebView 提示可见性
             if (textWebViewHint != null) {
                 textWebViewHint.setVisibility(checked ? View.VISIBLE : View.GONE);
             }
