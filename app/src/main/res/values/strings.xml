@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <string name="app_name">透明截图</string>
     <string name="my_button_text" translatable="false">Submit</string>
     <string name="title_prompt">选择窗口标题</string>
