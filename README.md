@@ -102,5 +102,5 @@
 
 ## 🙏 致谢
 
-- [SpoofTitle](https://github.com/ZhongYeZi-meow/SpoofTitle) – 窗口标题伪装逻辑
+- [SpoofTitle](https://github.com/ZhongYeZi-meow/SpoofTitle) – 模块功能参考
 - [-HideScreen-](https://github.com/zjkkzk/-HideScreen-) – 防截屏功能参考与问题修复
