@@ -1,5 +1,6 @@
 package com.dszsu.tss;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.net.Uri;
@@ -35,8 +36,12 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
     private String currentSearch = "";
 
     private static final Set<String> SYSTEM_CRITICAL_PACKAGES = new HashSet<>(Arrays.asList(
-            "android", "system", "com.android.systemui", "oplus", "com.oplus", "com.coloros", "com.oppo", "com.oneplus"
+            "android", "system", "com.android.systemui", "oplus"
     ));
+
+    // 缓存检测到的 WebView 包名，避免重复反射
+    private String cachedWebViewPackage = null;
+    private boolean webViewChecked = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,47 +90,73 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
         if (svc != null) {
             AppListRepository.getInstance().refreshData(svc, getPackageManager(), this);
             checkScopeWarning(svc.getScope());
-            detectAndSaveWebViewPackage(svc);
+            detectAndSaveWebViewPackage();
         }
     }
 
     /**
-     * 检测系统当前 WebView 包名，保存到 global 配置（不请求作用域）
+     * 检测系统当前 WebView 包名（缓存结果，仅首次检测，后续直接使用缓存）
      */
-    private void detectAndSaveWebViewPackage(XposedService svc) {
+    @SuppressLint("DiscouragedApi")
+    private void detectAndSaveWebViewPackage() {
+        if (webViewChecked) {
+            // 已检测过，直接复用缓存，不再重复反射
+            if (cachedWebViewPackage != null) {
+                saveWebViewPackage(cachedWebViewPackage);
+            }
+            return;
+        }
+
         String webviewPkg = null;
+        // 方法一：标准 API
         try {
             PackageInfo pi = WebView.getCurrentWebViewPackage();
-            if (pi != null && pi.packageName != null) {
+            if (pi != null) {
                 webviewPkg = pi.packageName;
             }
         } catch (Throwable ignored) {}
+
+        // 方法二：反射 WebViewFactory（仅在标准 API 失败时使用）
         if (webviewPkg == null) {
             try {
-                Class<?> factoryClass = Class.forName("android.webkit.WebViewFactory");
+                @SuppressLint("PrivateApi") Class<?> factoryClass = Class.forName("android.webkit.WebViewFactory");
                 Method method = factoryClass.getMethod("getLoadedPackageInfo");
                 PackageInfo pi = (PackageInfo) method.invoke(null);
-                if (pi != null && pi.packageName != null) {
+                if (pi != null) {
                     webviewPkg = pi.packageName;
                 }
             } catch (Throwable ignored) {}
         }
+
+        // 方法三：读取系统属性（以上均失败时）
         if (webviewPkg == null) {
             try {
-                Class<?> spClass = Class.forName("android.os.SystemProperties");
+                @SuppressLint("PrivateApi") Class<?> spClass = Class.forName("android.os.SystemProperties");
                 Method get = spClass.getMethod("get", String.class, String.class);
                 String pkg = (String) get.invoke(null, "persist.sys.webview.packagename", "");
-                if (!pkg.isEmpty()) {
+                if (pkg != null && !pkg.isEmpty()) {
                     webviewPkg = pkg;
                 }
             } catch (Throwable ignored) {}
         }
 
+        cachedWebViewPackage = webviewPkg;
+        webViewChecked = true;
+
         if (webviewPkg != null) {
-            svc.getRemotePreferences("global").edit().putString("webview_package", webviewPkg).apply();
-            Log.i("TransScreenshot", "WebView package saved: " + webviewPkg);
+            saveWebViewPackage(webviewPkg);
+            Log.i("TransScreenshot", "WebView package detected: " + webviewPkg);
         } else {
             Log.w("TransScreenshot", "Unable to detect WebView package");
+        }
+    }
+
+    private void saveWebViewPackage(String pkg) {
+        if (service != null) {
+            service.getRemotePreferences("global")
+                    .edit()
+                    .putString("webview_package", pkg)
+                    .apply();
         }
     }
 

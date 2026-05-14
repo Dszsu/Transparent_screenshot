@@ -97,7 +97,7 @@ public class MainXposedModule extends XposedModule {
         try {
             SharedPreferences globalPrefs = getRemotePreferences("global");
             String webviewPkg = globalPrefs.getString("webview_package", null);
-            boolean isWebView = (webviewPkg != null && packageName.equals(webviewPkg));
+            boolean isWebView = (packageName.equals(webviewPkg));
 
             SharedPreferences prefs = getRemotePreferences(packageName.toLowerCase());
 

@@ -104,12 +104,12 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="-10dp"
+                    android:paddingStart="0dp"
+                    android:paddingEnd="0dp"
                     android:text="@string/desc_skip_screenshot"
-                    android:textSize="12sp"
-                    android:textColor="@color/desc_text_gray"
-                    android:paddingStart="4dp"
-                    android:paddingEnd="4dp"
-                    android:layout_marginTop="-10dp" />
+                    android:textColor="#757575"
+                    android:textSize="12sp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -186,12 +186,12 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="-10dp"
+                    android:paddingStart="0dp"
+                    android:paddingEnd="0dp"
                     android:text="@string/desc_magic_flags"
-                    android:textSize="12sp"
-                    android:textColor="@color/desc_text_gray"
-                    android:paddingStart="4dp"
-                    android:paddingEnd="4dp"
-                    android:layout_marginTop="-10dp" />
+                    android:textColor="#757575"
+                    android:textSize="12sp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -268,12 +268,12 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="-10dp"
+                    android:paddingStart="0dp"
+                    android:paddingEnd="0dp"
                     android:text="@string/desc_window_title"
-                    android:textSize="12sp"
-                    android:textColor="@color/desc_text_gray"
-                    android:paddingStart="4dp"
-                    android:paddingEnd="4dp"
-                    android:layout_marginTop="-10dp" />
+                    android:textColor="#757575"
+                    android:textSize="12sp" />
 
                 <LinearLayout
                     android:id="@+id/layout_title_picker"

@@ -17,8 +17,6 @@
     <string name="global_title">全局窗口标题</string>
     <string name="user_title_name">输入自定义标题</string>
     <string name="app_icon">应用图标</string>
-    <string name="setting">设置</string>
-    <string name="github_home">模块主页</string>
     <string name="desc_skip_screenshot">设置 skipScreenshot 标志让系统跳过合成</string>
     <string name="desc_window_title">特定标题会让系统跳过合成，效果类似skipScreenshot</string>
     <string name="webview_hint">部分应用使用 WebView 渲染，webview在不特殊设置标题时默认使用全局标题</string>
@@ -28,4 +26,6 @@
     <string name="set_title">自定义标题</string>
     <string name="all_app">此设置影响所有应用</string>
     <string name="webview_show_wallpaper">使用WebView渲染应允许截屏到壁纸层</string>
+    <string name="home">模块主页</string>
+    <string name="setting">设置</string>
 </resources>
