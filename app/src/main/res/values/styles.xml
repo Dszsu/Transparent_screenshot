@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 下拉弹出菜单背景（圆角） -->
+    <style name="SpinnerPopup" parent="Widget.AppCompat.ListPopupWindow">
+        <item name="android:popupBackground">@drawable/popup_background</item>
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
+        <item name="android:dropDownVerticalOffset">8dp</item>
+    </style>
+
+    <!-- 三点菜单弹出样式（圆角） -->
+    <style name="OverflowMenuStyle" parent="Widget.MaterialComponents.PopupMenu.Overflow">
+        <item name="android:popupBackground">@drawable/popup_background</item>
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
+        <item name="android:colorBackground">?attr/colorSurface</item>
+    </style>
+
+    <!-- 配置项布局 -->
+    <style name="ConfigItemRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingVertical">12dp</item>
+        <item name="android:paddingHorizontal">8dp</item>
+    </style>
+
+    <style name="ConfigItemLabel">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="ConfigItemSwitch">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+    </style>
+</resources>

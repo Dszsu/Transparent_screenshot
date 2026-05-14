@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">透明截图</string>
+    <string name="my_button_text" translatable="false">Submit</string>
+    <string name="title_prompt">选择窗口标题</string>
+    <string name="global_title_not_set">未设置全局标题，请前往“设置”界面设置全局标题</string>
+    <string name="current_global_title">当前全局标题：%s</string>
+    <string name="skipscreenshot">启用默认窗口隐藏方案</string>
+    <string name="appicon">应用图标</string>
+    <string name="dim0">去除阴影遮罩</string>
+    <string name="magicflags">绕过焦点检查</string>
+    <string name="card">隐藏最近任务界面</string>
+    <string name="title">修改窗口标题为</string>
+    <string name="user_title">输入自定义标题</string>
+    <string name="modules">请先启用模块并将应用添加到作用域</string>
+    <string name="android_system_com_android_systemui">切勿勾选系统关键组件 (android/system/com.android.systemui)</string>
+    <string name="global_title">全局窗口标题</string>
+    <string name="user_title_name">输入自定义标题</string>
+    <string name="app_icon">应用图标</string>
+    <string name="desc_skip_screenshot">设置 skipScreenshot 标志让系统跳过合成</string>
+    <string name="desc_window_title">特定标题会让系统跳过合成，效果类似skipScreenshot</string>
+    <string name="webview_hint">部分应用使用 WebView 渲染，webview在不特殊设置标题时默认使用全局标题</string>
+    <string name="desc_magic_flags">会导致该应用无法唤出输入法</string>
+    <string name="gl_title">选择默认的窗口标题品牌，应用跟随全局时将使用此值</string>
+    <string name="pp">品牌选择</string>
+    <string name="set_title">自定义标题</string>
+    <string name="all_app">此设置影响所有应用</string>
+    <string name="webview_show_wallpaper">使用WebView渲染应允许截屏到壁纸层</string>
+    <string name="home">模块主页</string>
+    <string name="setting">设置</string>
+</resources>
