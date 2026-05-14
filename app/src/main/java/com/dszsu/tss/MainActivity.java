@@ -30,16 +30,13 @@ import io.github.libxposed.service.XposedService;
 public class MainActivity extends AppCompatActivity implements App.ServiceListener,
         AppListRepository.OnDataRefreshListener {
 
+    private static final Set<String> SYSTEM_CRITICAL_PACKAGES = new HashSet<>(Arrays.asList(
+            "android", "system", "com.android.systemui", "oplus"
+    ));
     private ActivityMainBinding binding;
     private AppAdapter adapter;
     private XposedService service;
     private String currentSearch = "";
-
-    private static final Set<String> SYSTEM_CRITICAL_PACKAGES = new HashSet<>(Arrays.asList(
-            "android", "system", "com.android.systemui", "oplus"
-    ));
-
-    // 缓存检测到的 WebView 包名，避免重复反射
     private String cachedWebViewPackage = null;
     private boolean webViewChecked = false;
 
@@ -72,7 +69,10 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
 
         binding.searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
-            public boolean onQueryTextSubmit(String query) { return false; }
+            public boolean onQueryTextSubmit(String query) {
+                return false;
+            }
+
             @Override
             public boolean onQueryTextChange(String newText) {
                 currentSearch = newText;
@@ -94,13 +94,9 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
         }
     }
 
-    /**
-     * 检测系统当前 WebView 包名（缓存结果，仅首次检测，后续直接使用缓存）
-     */
     @SuppressLint("DiscouragedApi")
     private void detectAndSaveWebViewPackage() {
         if (webViewChecked) {
-            // 已检测过，直接复用缓存，不再重复反射
             if (cachedWebViewPackage != null) {
                 saveWebViewPackage(cachedWebViewPackage);
             }
@@ -114,9 +110,10 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
             if (pi != null) {
                 webviewPkg = pi.packageName;
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+        }
 
-        // 方法二：反射 WebViewFactory（仅在标准 API 失败时使用）
+        // 方法二：反射 WebViewFactory
         if (webviewPkg == null) {
             try {
                 @SuppressLint("PrivateApi") Class<?> factoryClass = Class.forName("android.webkit.WebViewFactory");
@@ -125,10 +122,11 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
                 if (pi != null) {
                     webviewPkg = pi.packageName;
                 }
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+            }
         }
 
-        // 方法三：读取系统属性（以上均失败时）
+        // 方法三：读取系统属性
         if (webviewPkg == null) {
             try {
                 @SuppressLint("PrivateApi") Class<?> spClass = Class.forName("android.os.SystemProperties");
@@ -137,7 +135,8 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
                 if (pkg != null && !pkg.isEmpty()) {
                     webviewPkg = pkg;
                 }
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+            }
         }
 
         cachedWebViewPackage = webviewPkg;
@@ -160,7 +159,6 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
         }
     }
 
-    // --- 以下方法保持不变 ---
     @Override
     public void onRefreshComplete(List<AppInfo> filteredList) {
         adapter.submitList(filteredList);

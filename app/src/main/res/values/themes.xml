@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
     <style name="Theme.Transparent_screenshot" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@android:color/white</item>
         <item name="colorOnPrimary">@android:color/black</item>

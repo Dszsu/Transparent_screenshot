@@ -22,20 +22,12 @@ import io.github.libxposed.api.XposedModule;
 public class MainXposedModule extends XposedModule {
 
     private static final String TAG = "TransScreenshot";
-
-    // 当前进程配置
-    private final Set<String> enabledFeatures = Collections.synchronizedSet(new HashSet<>());
-    private volatile String windowTitle = null;
-
-    // Hook 去重（进程级）
-    private static volatile boolean sHooksInstalled = false;
     private static final Object sLock = new Object();
-
-    // 反射缓存（防截屏用）
-    private static volatile Field sSurfaceControlField = null;
     private static final String[] SC_CANDIDATE_FIELDS = {
             "mSurfaceControl", "mSurface", "mLeash", "mSurfaceControlLocked"
     };
+    private static volatile boolean sHooksInstalled = false;
+    private static volatile Field sSurfaceControlField = null;
     private static volatile Constructor<?> sTxnConstructor = null;
     private static volatile Method sTxnSetSkipScreenshot = null;
     private static volatile Method sTxnSetSkipScreenshotLegacy = null;
@@ -45,11 +37,12 @@ public class MainXposedModule extends XposedModule {
     private static volatile Class<?> sScClass = null;
     private static volatile Method sScIsValid = null;
     private static volatile boolean sCacheReady = false;
-
-    // 已应用防截屏的 ViewRootImpl 集合
+    // 当前进程配置
+    private final Set<String> enabledFeatures = Collections.synchronizedSet(new HashSet<>());
     private final Set<Object> secureApplied = Collections.synchronizedSet(
             Collections.newSetFromMap(new WeakHashMap<>())
     );
+    private volatile String windowTitle = null;
 
     @Override
     public void onPackageReady(@NonNull PackageReadyParam param) {
@@ -86,9 +79,7 @@ public class MainXposedModule extends XposedModule {
         }
     }
 
-    /**
-     * 加载当前包名的配置，包含 WebView 标题继承与壁纸标志合并处理
-     */
+
     private void loadConfig(String packageName) {
         synchronized (enabledFeatures) {
             enabledFeatures.clear();
@@ -101,24 +92,21 @@ public class MainXposedModule extends XposedModule {
 
             SharedPreferences prefs = getRemotePreferences(packageName.toLowerCase());
 
-            // 无本地配置的情况
             if (prefs.getAll().isEmpty()) {
                 log(android.util.Log.INFO, TAG, "[" + packageName + "] No local config");
                 if (isWebView) {
-                    // WebView 只继承全局标题和壁纸，不添加其他功能
                     applyWebViewDefaults(globalPrefs);
                 }
                 return;
             }
 
-            // 读取本地功能开关
             Set<String> features = new HashSet<>();
             if (prefs.contains("enable_skip_screenshot")) features.add("enable_skip_screenshot");
             if (prefs.contains("FLAG_DIM_BEHIND_0")) features.add("FLAG_DIM_BEHIND_0");
             if (prefs.contains("magic_flags")) features.add("magic_flags");
             if (prefs.contains("hide_recent_card")) features.add("hide_recent_card");
 
-            // 窗口标题处理（简化 null 检查）
+
             String titleValue = prefs.getString("window_title", null);
             String finalTitle = null;
             boolean titleFromGlobal = false;
@@ -129,12 +117,10 @@ public class MainXposedModule extends XposedModule {
                 finalTitle = titleValue;
             }
 
-            // WebView 壁纸标志（仅 WebView 进程）
             if (isWebView && globalPrefs.getBoolean("webview_show_wallpaper", false)) {
                 features.add("show_wallpaper_webview");
             }
 
-            // WebView 标题自动补全：若无本地标题且未跟随全局，则尝试使用全局标题
             if (isWebView && finalTitle == null) {
                 finalTitle = globalPrefs.getString("title", null);
                 titleFromGlobal = true;
@@ -145,7 +131,6 @@ public class MainXposedModule extends XposedModule {
                 windowTitle = (finalTitle != null && !finalTitle.isEmpty()) ? finalTitle : null;
             }
 
-            // 日志输出配置
             log(android.util.Log.INFO, TAG, "[" + packageName + "] Config: features=" + features +
                     ", title=" + windowTitle + (titleFromGlobal ? " (from global)" : ""));
 
@@ -154,9 +139,7 @@ public class MainXposedModule extends XposedModule {
         }
     }
 
-    /**
-     * 为 WebView 进程设置默认标题和壁纸标志（无本地配置时）
-     */
+
     private void applyWebViewDefaults(SharedPreferences globalPrefs) {
         String title = globalPrefs.getString("title", null);
         if (title != null && !title.isEmpty()) {
@@ -183,7 +166,8 @@ public class MainXposedModule extends XposedModule {
                     f.setAccessible(true);
                     sSurfaceControlField = f;
                     break;
-                } catch (NoSuchFieldException ignored) {}
+                } catch (NoSuchFieldException ignored) {
+                }
             }
 
             sScClass = Class.forName("android.view.SurfaceControl", false, cl);
@@ -198,9 +182,21 @@ public class MainXposedModule extends XposedModule {
             sTxnClose = txnClass.getDeclaredMethod("close");
             sTxnClose.setAccessible(true);
 
-            try { sTxnSetSkipScreenshot = txnClass.getDeclaredMethod("setSkipScreenshot", sScClass, boolean.class); sTxnSetSkipScreenshot.setAccessible(true); } catch (Throwable ignored) {}
-            try { sTxnSetSkipScreenshotLegacy = txnClass.getDeclaredMethod("setSkipScreenshot", boolean.class); sTxnSetSkipScreenshotLegacy.setAccessible(true); } catch (Throwable ignored) {}
-            try { sTxnSetSecure = txnClass.getDeclaredMethod("setSecure", sScClass, boolean.class); sTxnSetSecure.setAccessible(true); } catch (Throwable ignored) {}
+            try {
+                sTxnSetSkipScreenshot = txnClass.getDeclaredMethod("setSkipScreenshot", sScClass, boolean.class);
+                sTxnSetSkipScreenshot.setAccessible(true);
+            } catch (Throwable ignored) {
+            }
+            try {
+                sTxnSetSkipScreenshotLegacy = txnClass.getDeclaredMethod("setSkipScreenshot", boolean.class);
+                sTxnSetSkipScreenshotLegacy.setAccessible(true);
+            } catch (Throwable ignored) {
+            }
+            try {
+                sTxnSetSecure = txnClass.getDeclaredMethod("setSecure", sScClass, boolean.class);
+                sTxnSetSecure.setAccessible(true);
+            } catch (Throwable ignored) {
+            }
 
             sCacheReady = true;
         }
@@ -252,7 +248,8 @@ public class MainXposedModule extends XposedModule {
         if (windowTitle != null) {
             try {
                 lp.setTitle(windowTitle);
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+            }
         }
     }
 
@@ -301,13 +298,25 @@ public class MainXposedModule extends XposedModule {
             txn = sTxnConstructor.newInstance();
             boolean applied = false;
             if (sTxnSetSkipScreenshot != null) {
-                try { sTxnSetSkipScreenshot.invoke(txn, sc, true); applied = true; } catch (Throwable ignored) {}
+                try {
+                    sTxnSetSkipScreenshot.invoke(txn, sc, true);
+                    applied = true;
+                } catch (Throwable ignored) {
+                }
             }
             if (!applied && sTxnSetSkipScreenshotLegacy != null) {
-                try { sTxnSetSkipScreenshotLegacy.invoke(txn, true); applied = true; } catch (Throwable ignored) {}
+                try {
+                    sTxnSetSkipScreenshotLegacy.invoke(txn, true);
+                    applied = true;
+                } catch (Throwable ignored) {
+                }
             }
             if (!applied && sTxnSetSecure != null) {
-                try { sTxnSetSecure.invoke(txn, sc, true); applied = true; } catch (Throwable ignored) {}
+                try {
+                    sTxnSetSecure.invoke(txn, sc, true);
+                    applied = true;
+                } catch (Throwable ignored) {
+                }
             }
 
             if (applied) {
@@ -317,7 +326,10 @@ public class MainXposedModule extends XposedModule {
         } catch (Throwable ignored) {
         } finally {
             if (txn != null) {
-                try { sTxnClose.invoke(txn); } catch (Throwable ignored) {}
+                try {
+                    sTxnClose.invoke(txn);
+                } catch (Throwable ignored) {
+                }
             }
         }
     }
@@ -329,7 +341,8 @@ public class MainXposedModule extends XposedModule {
             if (sc != null && sScClass.isInstance(sc) && Boolean.TRUE.equals(sScIsValid.invoke(sc))) {
                 return sc;
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+        }
         return null;
     }
 
@@ -354,7 +367,8 @@ public class MainXposedModule extends XposedModule {
                                 }
                             }
                         }
-                    } catch (Throwable ignored) {}
+                    } catch (Throwable ignored) {
+                    }
                     return null;
                 });
     }

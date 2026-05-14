@@ -4,9 +4,9 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="?android:attr/colorBackground"
-    android:fitsSystemWindows="true">
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
@@ -14,8 +14,8 @@
         android:layout_height="?attr/actionBarSize"
         android:background="?android:attr/colorBackground"
         android:theme="?attr/actionBarTheme"
-        app:title=""
         app:contentInsetStartWithNavigation="0dp"
+        app:title=""
         tools:ignore="ExtraText">
         android:theme="@style/ThemeOverlay.MaterialComponents.Toolbar.Popup"
         app:popupTheme="@style/ThemeOverlay.MaterialComponents" />
@@ -45,33 +45,33 @@
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
+                android:background="?android:attr/colorBackground"
                 android:clipToPadding="false"
-                android:padding="8dp"
-                android:background="?android:attr/colorBackground" />
+                android:padding="8dp" />
 
             <TextView
                 android:id="@+id/emptyHint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="12dp"
                 android:gravity="center"
                 android:text="@string/modules"
-                android:textSize="16sp"
                 android:textColor="?android:attr/textColorSecondary"
-                android:visibility="gone"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="12dp" />
+                android:textSize="16sp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/warningHint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="24dp"
                 android:gravity="center"
                 android:text="@string/android_system_com_android_systemui"
-                android:textSize="14sp"
                 android:textColor="?android:attr/colorError"
-                android:visibility="gone"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="24dp" />
+                android:textSize="14sp"
+                android:visibility="gone" />
         </LinearLayout>
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 </LinearLayout>

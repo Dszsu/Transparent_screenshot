@@ -8,11 +8,14 @@ import android.util.LruCache;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
+
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.AsyncListDiffer;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.dszsu.tss.databinding.ItemAppBinding;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -21,6 +24,26 @@ import java.util.concurrent.Executors;
 
 public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
 
+    private static final Set<String> VIRTUAL_SYSTEM_PACKAGES = new HashSet<>();
+    private static final DiffUtil.ItemCallback<AppInfo> DIFF_CALLBACK = new DiffUtil.ItemCallback<>() {
+        @Override
+        public boolean areItemsTheSame(@NonNull AppInfo oldItem, @NonNull AppInfo newItem) {
+            return oldItem.getPackageName().equals(newItem.getPackageName());
+        }
+
+        @Override
+        public boolean areContentsTheSame(@NonNull AppInfo oldItem, @NonNull AppInfo newItem) {
+            return oldItem.getLabel().equals(newItem.getLabel())
+                    && oldItem.isInScope() == newItem.isInScope()
+                    && oldItem.isShowConfig() == newItem.isShowConfig()
+                    && oldItem.isSystemCritical() == newItem.isSystemCritical();
+        }
+    };
+
+    static {
+        VIRTUAL_SYSTEM_PACKAGES.add("system");
+    }
+
     private final AsyncListDiffer<AppInfo> differ = new AsyncListDiffer<>(this, DIFF_CALLBACK);
     private final OnItemClickListener listener;
     private final LruCache<String, Drawable> iconCache = new LruCache<>(50);
@@ -28,15 +51,6 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final PackageManager packageManager;
     private final Drawable defaultIcon;
-
-    private static final Set<String> VIRTUAL_SYSTEM_PACKAGES = new HashSet<>();
-    static {
-        VIRTUAL_SYSTEM_PACKAGES.add("system");
-    }
-
-    public interface OnItemClickListener {
-        void onItemClick(AppInfo app);
-    }
 
     public AppAdapter(PackageManager pm, Drawable defaultIcon, OnItemClickListener listener) {
         this.packageManager = pm;
@@ -142,26 +156,16 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         holder.binding.ivIcon.setImageDrawable(null);
     }
 
+    public interface OnItemClickListener {
+        void onItemClick(AppInfo app);
+    }
+
     public static class ViewHolder extends RecyclerView.ViewHolder {
         final ItemAppBinding binding;
+
         ViewHolder(ItemAppBinding binding) {
             super(binding.getRoot());
             this.binding = binding;
         }
     }
-
-    private static final DiffUtil.ItemCallback<AppInfo> DIFF_CALLBACK = new DiffUtil.ItemCallback<>() {
-        @Override
-        public boolean areItemsTheSame(@NonNull AppInfo oldItem, @NonNull AppInfo newItem) {
-            return oldItem.getPackageName().equals(newItem.getPackageName());
-        }
-
-        @Override
-        public boolean areContentsTheSame(@NonNull AppInfo oldItem, @NonNull AppInfo newItem) {
-            return oldItem.getLabel().equals(newItem.getLabel())
-                    && oldItem.isInScope() == newItem.isInScope()
-                    && oldItem.isShowConfig() == newItem.isShowConfig()
-                    && oldItem.isSystemCritical() == newItem.isSystemCritical();
-        }
-    };
 }

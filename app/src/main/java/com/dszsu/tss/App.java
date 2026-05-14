@@ -1,19 +1,18 @@
 package com.dszsu.tss;
 
 import android.app.Application;
+
 import androidx.annotation.NonNull;
+
+import java.util.concurrent.CopyOnWriteArraySet;
+
 import io.github.libxposed.service.XposedService;
 import io.github.libxposed.service.XposedServiceHelper;
-import java.util.concurrent.CopyOnWriteArraySet;
 
 public class App extends Application implements XposedServiceHelper.OnServiceListener {
 
-    private static volatile XposedService sService;
     private static final CopyOnWriteArraySet<ServiceListener> listeners = new CopyOnWriteArraySet<>();
-
-    public interface ServiceListener {
-        void onServiceChanged(XposedService service);
-    }
+    private static volatile XposedService sService;
 
     public static void addListener(@NonNull ServiceListener listener) {
         listeners.add(listener);
@@ -43,5 +42,9 @@ public class App extends Application implements XposedServiceHelper.OnServiceLis
     public void onServiceDied(@NonNull XposedService service) {
         sService = null;
         for (ServiceListener l : listeners) l.onServiceChanged(null);
+    }
+
+    public interface ServiceListener {
+        void onServiceChanged(XposedService service);
     }
 }

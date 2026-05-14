@@ -2,10 +2,10 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="12dp"
+    android:background="?attr/selectableItemBackground"
     android:gravity="center_vertical"
-    android:background="?attr/selectableItemBackground">
+    android:orientation="horizontal"
+    android:padding="12dp">
 
     <ImageView
         android:id="@+id/ivIcon"
@@ -24,15 +24,15 @@
             android:id="@+id/tvLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="16sp"
-            android:textColor="?android:attr/textColorPrimary" />
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="16sp" />
 
         <TextView
             android:id="@+id/tvPackage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="14sp"
+            android:layout_marginTop="2dp"
             android:textColor="?android:attr/textColorSecondary"
-            android:layout_marginTop="2dp" />
+            android:textSize="14sp" />
     </LinearLayout>
 </LinearLayout>

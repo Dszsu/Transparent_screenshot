@@ -19,26 +19,21 @@ import io.github.libxposed.service.XposedService;
 
 public class AppListRepository {
 
-    private static volatile AppListRepository instance;
-
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-
-    private volatile List<AppInfo> allApps = Collections.emptyList();
-    private volatile boolean isLoading = false;
-
     // 系统关键进程
     private static final Set<String> SYSTEM_CRITICAL = new HashSet<>();
+    private static volatile AppListRepository instance;
+
     static {
         SYSTEM_CRITICAL.add("android");
         SYSTEM_CRITICAL.add("system");
         SYSTEM_CRITICAL.add("com.android.systemui");
+        SYSTEM_CRITICAL.add("oplus");
     }
 
-    public interface OnDataRefreshListener {
-        void onRefreshComplete(List<AppInfo> filteredList);
-        void onLoadingStateChanged(boolean isLoading);
-    }
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private volatile List<AppInfo> allApps = Collections.emptyList();
+    private volatile boolean isLoading = false;
 
     public static AppListRepository getInstance() {
         if (instance == null) {
@@ -80,7 +75,7 @@ public class AppListRepository {
                     ));
                 }
 
-                // 添加作用域中未出现的系统关键虚拟包（如 system）
+                // 添加作用域中未出现的系统
                 for (String scopePkg : scope) {
                     String lower = scopePkg.toLowerCase();
                     if (!seenPackages.contains(lower) && isSystemCritical(lower)) {
@@ -89,7 +84,8 @@ public class AppListRepository {
                             try {
                                 ApplicationInfo androidApp = pm.getApplicationInfo("android", 0);
                                 label = androidApp.loadLabel(pm).toString();
-                            } catch (PackageManager.NameNotFoundException ignored) {}
+                            } catch (PackageManager.NameNotFoundException ignored) {
+                            }
                             apps.add(new AppInfo(label, lower, true, false, true));
                         } else {
                             apps.add(new AppInfo(lower, lower, true, false, true));
@@ -109,7 +105,8 @@ public class AppListRepository {
                             if (!prefs.getAll().isEmpty()) {
                                 configured.add(info.getPackageName().toLowerCase());
                             }
-                        } catch (Throwable ignored) {}
+                        } catch (Throwable ignored) {
+                        }
                     }
                 }
 
@@ -165,5 +162,11 @@ public class AppListRepository {
 
     private void notifyLoading(OnDataRefreshListener listener, boolean loading) {
         if (listener != null) mainHandler.post(() -> listener.onLoadingStateChanged(loading));
+    }
+
+    public interface OnDataRefreshListener {
+        void onRefreshComplete(List<AppInfo> filteredList);
+
+        void onLoadingStateChanged(boolean isLoading);
     }
 }

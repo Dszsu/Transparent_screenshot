@@ -7,19 +7,15 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
+
 import io.github.libxposed.service.XposedService;
 
 public class SettingsActivity extends AppCompatActivity implements App.ServiceListener {
 
-    private XposedService service;
-    private Spinner spinnerBrand;
-    private SwitchCompat switchWebviewShowWallpaper;
-    private boolean loading = false;
-
-    // 仅保留预设品牌，移除“自定义”
     private static final String[] BRAND_LABELS = {
             "OPPO/一加/真我", "小米/红米", "三星", "华为EMUI", "Vivo", "魅族"
     };
@@ -28,6 +24,10 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
             "com.samsung.android.app.screenrecorder", "ScreenRecoderTimer",
             "screen_record_menu", "SysScreenRecorder"
     };
+    private XposedService service;
+    private Spinner spinnerBrand;
+    private SwitchCompat switchWebviewShowWallpaper;
+    private boolean loading = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,7 +63,6 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
         loading = true;
         SharedPreferences globalPrefs = service.getRemotePreferences("global");
 
-        // 品牌选择：只在预设中查找，找不到则默认第一个
         String savedTitle = globalPrefs.getString("title", "");
         int pos = 0;
         for (int i = 0; i < BRAND_VALUES.length; i++) {
@@ -86,8 +85,10 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                 if (loading) return;
                 saveGlobalTitle(BRAND_VALUES[position]);
             }
+
             @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
         });
 
         switchWebviewShowWallpaper.setOnCheckedChangeListener((v, isChecked) -> {

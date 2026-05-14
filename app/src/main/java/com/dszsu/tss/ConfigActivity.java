@@ -24,6 +24,8 @@ import io.github.libxposed.service.XposedService;
 
 public class ConfigActivity extends AppCompatActivity implements App.ServiceListener {
 
+    private static final String GLOBAL_GROUP = "global";
+    private static final String KEY_GLOBAL_TITLE = "title";
     private String packageName;
     private XposedService service;
     private SwitchCompat switchDisableSkipScreenshot, switchDimBehind,
@@ -34,16 +36,16 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
     private TextView textGlobalHint, textWebViewHint;
     private boolean loading = false;
 
-    private static final String GLOBAL_GROUP = "global";
-    private static final String KEY_GLOBAL_TITLE = "title";
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_config);
 
         packageName = getIntent().getStringExtra("packageName");
-        if (packageName == null) { finish(); return; }
+        if (packageName == null) {
+            finish();
+            return;
+        }
 
         bindViews();
         setTopBarInfo();
@@ -199,13 +201,17 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
                     saveWindowTitle(editCustomTitle.getText().toString().trim());
                 }
             }
+
             @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
         });
 
         editCustomTitle.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (loading) return;
@@ -213,8 +219,10 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
                     saveWindowTitle(s.toString().trim());
                 }
             }
+
             @Override
-            public void afterTextChanged(Editable s) {}
+            public void afterTextChanged(Editable s) {
+            }
         });
 
         if (getSupportActionBar() != null) {
