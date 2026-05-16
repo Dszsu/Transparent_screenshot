@@ -25,10 +25,10 @@
     <string name="set_title">Custom title</string>
     <string name="home">Module Homepage</string>
     <string name="setting">Settings</string>
-    <string name="title_mode_global">Global</string>
-    <string name="title_mode_custom">Custom</string>
-    <string name="show_wallpaper">Allow screenshot to wallpaper layer</string>
-    <string name="desc_show_wallpaper_app">Only effective for some apps</string>
+    <string name="title_mode_global" translatable="false">Global</string>
+    <string name="title_mode_custom" translatable="false">Custom</string>
+    <string name="show_wallpaper" translatable="false">Allow screenshot to wallpaper layer</string>
+    <string name="desc_show_wallpaper_app" translatable="false">Only effective for some apps</string>
 
     <string-array name="brand_labels">
         <item>None</item>
