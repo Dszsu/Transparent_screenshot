@@ -19,13 +19,10 @@
     <string name="app_icon">App icon</string>
     <string name="desc_skip_screenshot">Set the skipScreenshot flag to bypass system compositing</string>
     <string name="desc_window_title">A specific title will cause the system to skip compositing, similar to skipScreenshot</string>
-    <string name="webview_hint">WebView uses the global title by default when no custom title is set</string>
     <string name="desc_magic_flags">This will prevent the app from invoking the keyboard</string>
     <string name="gl_title">Select a default window title brand. Apps following the global setting will use this value.</string>
     <string name="pp">Brand selection</string>
     <string name="set_title">Custom title</string>
-    <string name="all_app">This setting affects all apps</string>
-    <string name="webview_show_wallpaper">Allow WebView-rendered apps to screenshot to the wallpaper layer</string>
     <string name="home">Module Homepage</string>
     <string name="setting">Settings</string>
 </resources>
