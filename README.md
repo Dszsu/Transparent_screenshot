@@ -214,3 +214,5 @@ The user assumes all responsibility for any consequences arising from the use of
 
 - [SpoofTitle](https://github.com/ZhongYeZi-meow/SpoofTitle) – window title spoofing logic
 - [-HideScreen-](https://github.com/zjkkzk/-HideScreen-) – anti‑screenshot reference and fixes
+- [SpoofTitle](https://github.com/ZhongYeZi-meow/SpoofTitle) – 模块功能参考
+- [-HideScreen-](https://github.com/zjkkzk/-HideScreen-) – 防截屏功能参考与问题修复
