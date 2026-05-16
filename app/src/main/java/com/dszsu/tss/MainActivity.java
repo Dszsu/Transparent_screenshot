@@ -1,15 +1,11 @@
 package com.dszsu.tss;
 
-import android.annotation.SuppressLint;
 import android.content.Intent;
-import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.webkit.WebView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -19,7 +15,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.dszsu.tss.databinding.ActivityMainBinding;
 
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -30,15 +25,14 @@ import io.github.libxposed.service.XposedService;
 public class MainActivity extends AppCompatActivity implements App.ServiceListener,
         AppListRepository.OnDataRefreshListener {
 
-    private static final Set<String> SYSTEM_CRITICAL_PACKAGES = new HashSet<>(Arrays.asList(
-            "android", "system", "com.android.systemui", "oplus"
-    ));
     private ActivityMainBinding binding;
     private AppAdapter adapter;
     private XposedService service;
     private String currentSearch = "";
-    private String cachedWebViewPackage = null;
-    private boolean webViewChecked = false;
+
+    private static final Set<String> SYSTEM_CRITICAL_PACKAGES = new HashSet<>(Arrays.asList(
+            "android", "system", "com.android.systemui", "oplus"
+    ));
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,7 +66,6 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
             public boolean onQueryTextSubmit(String query) {
                 return false;
             }
-
             @Override
             public boolean onQueryTextChange(String newText) {
                 currentSearch = newText;
@@ -90,72 +83,6 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
         if (svc != null) {
             AppListRepository.getInstance().refreshData(svc, getPackageManager(), this);
             checkScopeWarning(svc.getScope());
-            detectAndSaveWebViewPackage();
-        }
-    }
-
-    @SuppressLint("DiscouragedApi")
-    private void detectAndSaveWebViewPackage() {
-        if (webViewChecked) {
-            if (cachedWebViewPackage != null) {
-                saveWebViewPackage(cachedWebViewPackage);
-            }
-            return;
-        }
-
-        String webviewPkg = null;
-        // 方法一：标准 API
-        try {
-            PackageInfo pi = WebView.getCurrentWebViewPackage();
-            if (pi != null) {
-                webviewPkg = pi.packageName;
-            }
-        } catch (Throwable ignored) {
-        }
-
-        // 方法二：反射 WebViewFactory
-        if (webviewPkg == null) {
-            try {
-                @SuppressLint("PrivateApi") Class<?> factoryClass = Class.forName("android.webkit.WebViewFactory");
-                Method method = factoryClass.getMethod("getLoadedPackageInfo");
-                PackageInfo pi = (PackageInfo) method.invoke(null);
-                if (pi != null) {
-                    webviewPkg = pi.packageName;
-                }
-            } catch (Throwable ignored) {
-            }
-        }
-
-        // 方法三：读取系统属性
-        if (webviewPkg == null) {
-            try {
-                @SuppressLint("PrivateApi") Class<?> spClass = Class.forName("android.os.SystemProperties");
-                Method get = spClass.getMethod("get", String.class, String.class);
-                String pkg = (String) get.invoke(null, "persist.sys.webview.packagename", "");
-                if (pkg != null && !pkg.isEmpty()) {
-                    webviewPkg = pkg;
-                }
-            } catch (Throwable ignored) {
-            }
-        }
-
-        cachedWebViewPackage = webviewPkg;
-        webViewChecked = true;
-
-        if (webviewPkg != null) {
-            saveWebViewPackage(webviewPkg);
-            Log.i("TransScreenshot", "WebView package detected: " + webviewPkg);
-        } else {
-            Log.w("TransScreenshot", "Unable to detect WebView package");
-        }
-    }
-
-    private void saveWebViewPackage(String pkg) {
-        if (service != null) {
-            service.getRemotePreferences("global")
-                    .edit()
-                    .putString("webview_package", pkg)
-                    .apply();
         }
     }
 

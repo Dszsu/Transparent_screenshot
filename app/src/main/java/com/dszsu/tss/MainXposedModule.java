@@ -22,12 +22,18 @@ import io.github.libxposed.api.XposedModule;
 public class MainXposedModule extends XposedModule {
 
     private static final String TAG = "TransScreenshot";
+
+    // Hook 去重（进程级）
+    private static volatile boolean sHooksInstalled = false;
+    // 反射缓存（防截屏）
+    private static volatile Field sSurfaceControlField = null;
+    // 当前进程配置
+    private final Set<String> enabledFeatures = Collections.synchronizedSet(new HashSet<>());
     private static final Object sLock = new Object();
+    private volatile String windowTitle = null;
     private static final String[] SC_CANDIDATE_FIELDS = {
             "mSurfaceControl", "mSurface", "mLeash", "mSurfaceControlLocked"
     };
-    private static volatile boolean sHooksInstalled = false;
-    private static volatile Field sSurfaceControlField = null;
     private static volatile Constructor<?> sTxnConstructor = null;
     private static volatile Method sTxnSetSkipScreenshot = null;
     private static volatile Method sTxnSetSkipScreenshotLegacy = null;
@@ -37,19 +43,20 @@ public class MainXposedModule extends XposedModule {
     private static volatile Class<?> sScClass = null;
     private static volatile Method sScIsValid = null;
     private static volatile boolean sCacheReady = false;
-    // 当前进程配置
-    private final Set<String> enabledFeatures = Collections.synchronizedSet(new HashSet<>());
+
     private final Set<Object> secureApplied = Collections.synchronizedSet(
             Collections.newSetFromMap(new WeakHashMap<>())
     );
-    private volatile String windowTitle = null;
 
     @Override
     public void onPackageReady(@NonNull PackageReadyParam param) {
         String pkg = param.getPackageName();
         log(android.util.Log.INFO, TAG, "Module injected into " + pkg);
 
-        loadConfig(pkg);
+        // 以进程名加载配置
+        String configPackage = getProcessName();
+        if (configPackage == null) configPackage = pkg;
+        loadConfig(configPackage);
 
         if (!sHooksInstalled) {
             synchronized (sLock) {
@@ -60,9 +67,6 @@ public class MainXposedModule extends XposedModule {
 
                         if (enabledFeatures.contains("enable_skip_screenshot")) {
                             installAntiScreenshotHook(param);
-                            log(android.util.Log.INFO, TAG, "Anti-screenshot hook installed (explicitly enabled)");
-                        } else {
-                            log(android.util.Log.INFO, TAG, "Anti-screenshot hook NOT installed");
                         }
 
                         if (enabledFeatures.contains("hide_recent_card")) {
@@ -70,7 +74,7 @@ public class MainXposedModule extends XposedModule {
                         }
 
                         sHooksInstalled = true;
-                        log(android.util.Log.INFO, TAG, "All hooks initialized for process");
+                        log(android.util.Log.INFO, TAG, "All hooks initialized");
                     } catch (Throwable t) {
                         log(android.util.Log.ERROR, TAG, "Failed to install hooks: " + t.getMessage());
                     }
@@ -79,51 +83,44 @@ public class MainXposedModule extends XposedModule {
         }
     }
 
+    @SuppressLint("DiscouragedPrivateApi")
+    private String getProcessName() {
+        try {
+            @SuppressLint("PrivateApi") Class<?> atClass = Class.forName("android.app.ActivityThread");
+            @SuppressLint("DiscouragedPrivateApi") Object at = atClass.getDeclaredMethod("currentActivityThread").invoke(null);
+            return (String) atClass.getDeclaredMethod("getProcessName").invoke(at);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
 
-    private void loadConfig(String packageName) {
+    private void loadConfig(String configPackage) {
         synchronized (enabledFeatures) {
             enabledFeatures.clear();
             windowTitle = null;
         }
         try {
             SharedPreferences globalPrefs = getRemotePreferences("global");
-            String webviewPkg = globalPrefs.getString("webview_package", null);
-            boolean isWebView = (packageName.equals(webviewPkg));
-
-            SharedPreferences prefs = getRemotePreferences(packageName.toLowerCase());
+            SharedPreferences prefs = getRemotePreferences(configPackage.toLowerCase());
 
             if (prefs.getAll().isEmpty()) {
-                log(android.util.Log.INFO, TAG, "[" + packageName + "] No local config");
-                if (isWebView) {
-                    applyWebViewDefaults(globalPrefs);
-                }
+                log(android.util.Log.INFO, TAG, "[" + configPackage + "] No config");
                 return;
             }
 
             Set<String> features = new HashSet<>();
             if (prefs.contains("enable_skip_screenshot")) features.add("enable_skip_screenshot");
             if (prefs.contains("FLAG_DIM_BEHIND_0")) features.add("FLAG_DIM_BEHIND_0");
+            if (prefs.contains("show_wallpaper")) features.add("show_wallpaper");
             if (prefs.contains("magic_flags")) features.add("magic_flags");
             if (prefs.contains("hide_recent_card")) features.add("hide_recent_card");
 
-
             String titleValue = prefs.getString("window_title", null);
             String finalTitle = null;
-            boolean titleFromGlobal = false;
             if ("$global".equals(titleValue)) {
                 finalTitle = globalPrefs.getString("title", null);
-                titleFromGlobal = true;
             } else if (titleValue != null) {
                 finalTitle = titleValue;
-            }
-
-            if (isWebView && globalPrefs.getBoolean("webview_show_wallpaper", false)) {
-                features.add("show_wallpaper_webview");
-            }
-
-            if (isWebView && finalTitle == null) {
-                finalTitle = globalPrefs.getString("title", null);
-                titleFromGlobal = true;
             }
 
             synchronized (enabledFeatures) {
@@ -131,25 +128,12 @@ public class MainXposedModule extends XposedModule {
                 windowTitle = (finalTitle != null && !finalTitle.isEmpty()) ? finalTitle : null;
             }
 
-            log(android.util.Log.INFO, TAG, "[" + packageName + "] Config: features=" + features +
-                    ", title=" + windowTitle + (titleFromGlobal ? " (from global)" : ""));
+            log(android.util.Log.INFO, TAG, "[" + configPackage + "] features=" + features +
+                    ", title=" + windowTitle);
 
         } catch (Throwable t) {
-            log(android.util.Log.ERROR, TAG, "[" + packageName + "] Config load error: " + t.getMessage());
+            log(android.util.Log.ERROR, TAG, "Config load error: " + t.getMessage());
         }
-    }
-
-
-    private void applyWebViewDefaults(SharedPreferences globalPrefs) {
-        String title = globalPrefs.getString("title", null);
-        if (title != null && !title.isEmpty()) {
-            windowTitle = title;
-        }
-        if (globalPrefs.getBoolean("webview_show_wallpaper", false)) {
-            enabledFeatures.add("show_wallpaper_webview");
-        }
-        log(android.util.Log.INFO, TAG, "WebView defaults applied: title=" + windowTitle +
-                ", wallpaper=" + enabledFeatures.contains("show_wallpaper_webview"));
     }
 
     // ==================== 反射缓存 ====================
@@ -237,13 +221,12 @@ public class MainXposedModule extends XposedModule {
             lp.flags &= ~WindowManager.LayoutParams.FLAG_DIM_BEHIND;
             lp.dimAmount = 0f;
         }
+        if (enabledFeatures.contains("show_wallpaper")) {
+            lp.flags |= 0x100000; // FLAG_SHOW_WALLPAPER
+        }
         if (enabledFeatures.contains("magic_flags")) {
             int magicFlags = 0x40000 | 0x200 | 0x20 | 0x8 | 0x20000;
             lp.flags |= magicFlags;
-        }
-        // 仅 WebView 进程且全局开关开启时生效
-        if (enabledFeatures.contains("show_wallpaper_webview")) {
-            lp.flags |= 0x100000; // FLAG_SHOW_WALLPAPER
         }
         if (windowTitle != null) {
             try {

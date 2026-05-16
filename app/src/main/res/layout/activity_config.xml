@@ -10,9 +10,9 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:background="?android:attr/colorBackground"
         android:clipToPadding="false"
-        android:orientation="vertical"
         android:padding="12dp">
 
         <!-- 顶部应用信息栏 -->
@@ -64,12 +64,14 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
+        <!-- 功能卡片组 -->
+
         <!-- 1. 启用窗口隐藏方案1 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="4dp"
             android:layout_marginTop="12dp"
+            android:layout_marginHorizontal="4dp"
             android:background="?attr/colorSurface"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp">
@@ -90,8 +92,8 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/skipscreenshot"
                         android:textColor="?android:attr/textColorPrimary"
+                        android:text="@string/skipscreenshot"
                         android:textSize="16sp" />
 
                     <androidx.appcompat.widget.SwitchCompat
@@ -105,10 +107,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="-10dp"
+                    android:text="@string/desc_skip_screenshot"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:paddingStart="0dp"
                     android:paddingEnd="0dp"
-                    android:text="@string/desc_skip_screenshot"
-                    android:textColor="#757575"
                     android:textSize="12sp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
@@ -117,8 +119,8 @@
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="4dp"
             android:layout_marginTop="8dp"
+            android:layout_marginHorizontal="4dp"
             android:background="?attr/colorSurface"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp">
@@ -126,16 +128,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
                 android:orientation="horizontal"
+                android:gravity="center_vertical"
                 android:padding="12dp">
 
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/dim0"
                     android:textColor="?android:attr/textColorPrimary"
+                    android:text="@string/dim0"
                     android:textSize="16sp" />
 
                 <androidx.appcompat.widget.SwitchCompat
@@ -146,12 +148,12 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 3. 绕过焦点检查 -->
+        <!-- 3. 允许截屏至壁纸层 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="4dp"
             android:layout_marginTop="8dp"
+            android:layout_marginHorizontal="4dp"
             android:background="?attr/colorSurface"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp">
@@ -172,8 +174,57 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/magicflags"
+                        android:text="@string/show_wallpaper"
                         android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="16sp" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switch_show_wallpaper"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:importantForAccessibility="no" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="-10dp"
+                    android:paddingStart="0dp"
+                    android:paddingEnd="0dp"
+                    android:text="@string/desc_show_wallpaper_app"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 4. 绕过焦点检查 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginHorizontal="4dp"
+            android:background="?attr/colorSurface"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:text="@string/magicflags"
                         android:textSize="16sp" />
 
                     <androidx.appcompat.widget.SwitchCompat
@@ -187,20 +238,20 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="-10dp"
+                    android:text="@string/desc_magic_flags"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:paddingStart="0dp"
                     android:paddingEnd="0dp"
-                    android:text="@string/desc_magic_flags"
-                    android:textColor="#757575"
                     android:textSize="12sp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 4. 隐藏最近任务界面 -->
+        <!-- 5. 隐藏最近任务界面 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="4dp"
             android:layout_marginTop="8dp"
+            android:layout_marginHorizontal="4dp"
             android:background="?attr/colorSurface"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp">
@@ -208,16 +259,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
                 android:orientation="horizontal"
+                android:gravity="center_vertical"
                 android:padding="12dp">
 
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/card"
                     android:textColor="?android:attr/textColorPrimary"
+                    android:text="@string/card"
                     android:textSize="16sp" />
 
                 <androidx.appcompat.widget.SwitchCompat
@@ -228,12 +279,12 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 5. 窗口标题 -->
+        <!-- 6. 窗口标题 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="4dp"
             android:layout_marginTop="8dp"
+            android:layout_marginHorizontal="4dp"
             android:background="?attr/colorSurface"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp">
@@ -254,8 +305,8 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/title"
                         android:textColor="?android:attr/textColorPrimary"
+                        android:text="@string/title"
                         android:textSize="16sp" />
 
                     <androidx.appcompat.widget.SwitchCompat
@@ -269,10 +320,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="-10dp"
+                    android:text="@string/desc_window_title"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:paddingStart="0dp"
                     android:paddingEnd="0dp"
-                    android:text="@string/desc_window_title"
-                    android:textColor="#757575"
                     android:textSize="12sp" />
 
                 <LinearLayout
@@ -287,20 +338,20 @@
                         android:id="@+id/spinner_title_mode"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:minHeight="48dp"
                         android:layout_marginTop="8dp"
                         android:background="@drawable/spinner_background"
-                        android:dropDownVerticalOffset="8dp"
-                        android:minHeight="48dp"
                         android:padding="12dp"
+                        android:dropDownVerticalOffset="8dp"
                         android:popupBackground="@drawable/popup_background" />
 
                     <TextView
                         android:id="@+id/text_global_hint"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:textColor="@color/desc_text_gray"
                         android:textSize="14sp"
+                        android:layout_marginTop="8dp"
+                        android:textColor="?android:attr/textColorSecondary"
                         android:visibility="gone" />
 
                     <EditText
@@ -308,25 +359,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:autofillHints="no"
                         android:enabled="true"
-                        android:hint="@string/user_title"
+                        android:autofillHints="no"
                         android:inputType="textCapSentences"
+                        android:hint="@string/user_title"
                         android:visibility="gone" />
                 </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- WebView 提示（暗黄色） -->
-        <TextView
-            android:id="@+id/text_webview_hint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="4dp"
-            android:layout_marginTop="12dp"
-            android:text="@string/webview_hint"
-            android:textColor="#FFB8860B"
-            android:textSize="12sp"
-            android:visibility="gone" />
     </LinearLayout>
 </ScrollView>

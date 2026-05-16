@@ -24,17 +24,17 @@ import io.github.libxposed.service.XposedService;
 
 public class ConfigActivity extends AppCompatActivity implements App.ServiceListener {
 
-    private static final String GLOBAL_GROUP = "global";
-    private static final String KEY_GLOBAL_TITLE = "title";
     private String packageName;
     private XposedService service;
-    private SwitchCompat switchDisableSkipScreenshot, switchDimBehind,
-            switchMagicFlags, switchHideRecentCard, switchWindowTitle;
+    private static final String GLOBAL_GROUP = "global";
     private EditText editCustomTitle;
     private Spinner spinnerTitleMode;
     private View layoutTitlePicker;
-    private TextView textGlobalHint, textWebViewHint;
+    private static final String KEY_GLOBAL_TITLE = "title";
     private boolean loading = false;
+    private SwitchCompat switchDisableSkipScreenshot, switchDimBehind, switchShowWallpaper,
+            switchMagicFlags, switchHideRecentCard, switchWindowTitle;
+    private TextView textGlobalHint;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +55,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
     private void bindViews() {
         switchDisableSkipScreenshot = findViewById(R.id.switch_disable_skip_screenshot);
         switchDimBehind = findViewById(R.id.switch_dim_behind);
+        switchShowWallpaper = findViewById(R.id.switch_show_wallpaper);
         switchMagicFlags = findViewById(R.id.switch_magic_flags);
         switchHideRecentCard = findViewById(R.id.switch_hide_recent_card);
         switchWindowTitle = findViewById(R.id.switch_window_title);
@@ -62,10 +63,10 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         spinnerTitleMode = findViewById(R.id.spinner_title_mode);
         layoutTitlePicker = findViewById(R.id.layout_title_picker);
         textGlobalHint = findViewById(R.id.text_global_hint);
-        textWebViewHint = findViewById(R.id.text_webview_hint);
 
+        String[] titleModes = {getString(R.string.title_mode_global), getString(R.string.title_mode_custom)};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, new String[]{"全局", "自定义"});
+                android.R.layout.simple_spinner_item, titleModes);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerTitleMode.setAdapter(adapter);
     }
@@ -102,6 +103,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         SharedPreferences prefs = service.getRemotePreferences(packageName.toLowerCase());
         switchDisableSkipScreenshot.setChecked(prefs.contains("enable_skip_screenshot"));
         switchDimBehind.setChecked(prefs.contains("FLAG_DIM_BEHIND_0"));
+        switchShowWallpaper.setChecked(prefs.contains("show_wallpaper"));
         switchMagicFlags.setChecked(prefs.contains("magic_flags"));
         switchHideRecentCard.setChecked(prefs.contains("hide_recent_card"));
 
@@ -125,10 +127,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
             spinnerTitleMode.setSelection(0, false);
             editCustomTitle.setVisibility(View.GONE);
             textGlobalHint.setVisibility(View.GONE);
-        }
-
-        if (textWebViewHint != null) {
-            textWebViewHint.setVisibility(titleEnabled ? View.VISIBLE : View.GONE);
         }
 
         loading = false;
@@ -163,6 +161,9 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         switchDimBehind.setOnCheckedChangeListener((v, checked) -> {
             if (!loading) saveToggle("FLAG_DIM_BEHIND_0", checked);
         });
+        switchShowWallpaper.setOnCheckedChangeListener((v, checked) -> {
+            if (!loading) saveToggle("show_wallpaper", checked);
+        });
         switchMagicFlags.setOnCheckedChangeListener((v, checked) -> {
             if (!loading) saveToggle("magic_flags", checked);
         });
@@ -172,9 +173,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
 
         switchWindowTitle.setOnCheckedChangeListener((v, checked) -> {
             setTitlePickerEnabled(checked);
-            if (textWebViewHint != null) {
-                textWebViewHint.setVisibility(checked ? View.VISIBLE : View.GONE);
-            }
             if (loading) return;
             if (checked) {
                 saveWindowTitle("$global");
@@ -201,7 +199,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
                     saveWindowTitle(editCustomTitle.getText().toString().trim());
                 }
             }
-
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
             }
@@ -211,7 +208,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
             }
-
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (loading) return;
@@ -219,7 +215,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
                     saveWindowTitle(s.toString().trim());
                 }
             }
-
             @Override
             public void afterTextChanged(Editable s) {
             }
