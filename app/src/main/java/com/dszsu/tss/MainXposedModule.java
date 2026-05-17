@@ -12,7 +12,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.WeakHashMap;
 
@@ -21,16 +20,30 @@ import io.github.libxposed.api.XposedModule;
 
 public class MainXposedModule extends XposedModule {
 
-    private static final String TAG = "TransScreenshot";
+    //日志tag↓
+    //private static final String TAG = "TransScreenshot";
 
     // Hook 去重（进程级）
     private static volatile boolean sHooksInstalled = false;
     // 反射缓存（防截屏）
     private static volatile Field sSurfaceControlField = null;
-    // 当前进程配置
-    private final Set<String> enabledFeatures = Collections.synchronizedSet(new HashSet<>());
+
+    // 配置标志位（无锁）
+    private volatile boolean featureFlagDimBehind = false;
+    private volatile boolean featureShowWallpaper = false;
+    private volatile boolean featureMagicFlags = false;
+    private volatile boolean featureEnableSkipScreenshot = false;
+    private volatile boolean featureHideRecents = false;
+
     private static final Object sLock = new Object();
     private volatile String windowTitle = null;
+    private volatile boolean needModifyLayout = false;
+    private String lastLoadedPackage = null;
+
+    // [已废弃] 进程名缓存，避免失败时反复反射（改为包名匹配后不再需要）
+    // private volatile String cachedProcessName = null;
+    // private volatile boolean processNameResolved = false;
+
     private static final String[] SC_CANDIDATE_FIELDS = {
             "mSurfaceControl", "mSurface", "mLeash", "mSurfaceControlLocked"
     };
@@ -44,18 +57,26 @@ public class MainXposedModule extends XposedModule {
     private static volatile Method sScIsValid = null;
     private static volatile boolean sCacheReady = false;
 
+    // 缓存 onCreate 方法
+    private static volatile Method sActivityOnCreateMethod = null;
+
     private final Set<Object> secureApplied = Collections.synchronizedSet(
+            Collections.newSetFromMap(new WeakHashMap<>())
+    );
+    private final Set<Activity> excludedActivities = Collections.synchronizedSet(
             Collections.newSetFromMap(new WeakHashMap<>())
     );
 
     @Override
     public void onPackageReady(@NonNull PackageReadyParam param) {
         String pkg = param.getPackageName();
-        log(android.util.Log.INFO, TAG, "Module injected into " + pkg);
+        // log(android.util.Log.INFO, TAG, "Module injected into " + pkg);
 
-        // 以进程名加载配置
-        String configPackage = getProcessName();
-        if (configPackage == null) configPackage = pkg;
+        // [修改] 直接使用包名作为配置键，解决多进程应用部分界面不生效的问题
+        // 旧逻辑（按进程名）已注释，如需回退请见下方说明
+        // String configPackage = getProcessName();
+        // if (configPackage == null) configPackage = pkg;
+        String configPackage = pkg;  // 现在强制使用包名
         loadConfig(configPackage);
 
         if (!sHooksInstalled) {
@@ -65,74 +86,94 @@ public class MainXposedModule extends XposedModule {
                         initReflectionCache(param.getClassLoader());
                         installWindowManagerHook(param);
 
-                        if (enabledFeatures.contains("enable_skip_screenshot")) {
+                        if (featureEnableSkipScreenshot) {
                             installAntiScreenshotHook(param);
                         }
 
-                        if (enabledFeatures.contains("hide_recent_card")) {
+                        if (featureHideRecents) {
                             installHideRecentsHook();
                         }
 
                         sHooksInstalled = true;
-                        log(android.util.Log.INFO, TAG, "All hooks initialized");
+                        // log(android.util.Log.INFO, TAG, "All hooks initialized");
                     } catch (Throwable t) {
-                        log(android.util.Log.ERROR, TAG, "Failed to install hooks: " + t.getMessage());
+                        // log(android.util.Log.ERROR, TAG, "Failed to install hooks: " + t.getMessage());
                     }
                 }
             }
         }
     }
 
-    @SuppressLint("DiscouragedPrivateApi")
-    private String getProcessName() {
-        try {
-            @SuppressLint("PrivateApi") Class<?> atClass = Class.forName("android.app.ActivityThread");
-            @SuppressLint("DiscouragedPrivateApi") Object at = atClass.getDeclaredMethod("currentActivityThread").invoke(null);
-            return (String) atClass.getDeclaredMethod("getProcessName").invoke(at);
-        } catch (Throwable t) {
-            return null;
-        }
-    }
+    // [已废弃] 该方法在改为包名匹配后不再使用，保留以便回退
+    // @SuppressLint("DiscouragedPrivateApi")
+    // private String getProcessName() {
+    //     if (processNameResolved) {
+    //         return cachedProcessName;
+    //     }
+    //     processNameResolved = true; // 只尝试一次，避免反复反射
+    //     try {
+    //         @SuppressLint("PrivateApi") Class<?> atClass = Class.forName("android.app.ActivityThread");
+    //         @SuppressLint("DiscouragedPrivateApi") Object at = atClass.getDeclaredMethod("currentActivityThread").invoke(null);
+    //         cachedProcessName = (String) atClass.getDeclaredMethod("getProcessName").invoke(at);
+    //         return cachedProcessName;
+    //     } catch (Throwable t) {
+    //         return null; // cachedProcessName 保持 null
+    //     }
+    // }
 
     private void loadConfig(String configPackage) {
-        synchronized (enabledFeatures) {
-            enabledFeatures.clear();
-            windowTitle = null;
+        if (configPackage != null && configPackage.equals(lastLoadedPackage)) {
+            return;
         }
+        lastLoadedPackage = configPackage;
+
+        // 重置标志
+        featureFlagDimBehind = false;
+        featureShowWallpaper = false;
+        featureMagicFlags = false;
+        featureEnableSkipScreenshot = false;
+        featureHideRecents = false;
+        windowTitle = null;
+        needModifyLayout = false;
+
         try {
             SharedPreferences globalPrefs = getRemotePreferences("global");
             SharedPreferences prefs = getRemotePreferences(configPackage.toLowerCase());
 
             if (prefs.getAll().isEmpty()) {
-                log(android.util.Log.INFO, TAG, "[" + configPackage + "] No config");
+                // log(android.util.Log.INFO, TAG, "[" + configPackage + "] No config");
                 return;
             }
 
-            Set<String> features = new HashSet<>();
-            if (prefs.contains("enable_skip_screenshot")) features.add("enable_skip_screenshot");
-            if (prefs.contains("FLAG_DIM_BEHIND_0")) features.add("FLAG_DIM_BEHIND_0");
-            if (prefs.contains("show_wallpaper")) features.add("show_wallpaper");
-            if (prefs.contains("magic_flags")) features.add("magic_flags");
-            if (prefs.contains("hide_recent_card")) features.add("hide_recent_card");
+            if (prefs.contains("enable_skip_screenshot")) featureEnableSkipScreenshot = true;
+            if (prefs.contains("FLAG_DIM_BEHIND_0")) featureFlagDimBehind = true;
+            if (prefs.contains("show_wallpaper")) featureShowWallpaper = true;
+            if (prefs.contains("magic_flags")) featureMagicFlags = true;
+            if (prefs.contains("hide_recent_card")) featureHideRecents = true;
 
             String titleValue = prefs.getString("window_title", null);
             String finalTitle = null;
             if ("$global".equals(titleValue)) {
-                finalTitle = globalPrefs.getString("title", null);
+                if (globalPrefs != null) {
+                    finalTitle = globalPrefs.getString("title", null);
+                }
             } else if (titleValue != null) {
                 finalTitle = titleValue;
             }
 
-            synchronized (enabledFeatures) {
-                enabledFeatures.addAll(features);
-                windowTitle = (finalTitle != null && !finalTitle.isEmpty()) ? finalTitle : null;
-            }
+            windowTitle = (finalTitle != null && !finalTitle.isEmpty()) ? finalTitle : null;
+            needModifyLayout = featureFlagDimBehind || featureShowWallpaper || featureMagicFlags || windowTitle != null;
 
-            log(android.util.Log.INFO, TAG, "[" + configPackage + "] features=" + features +
-                    ", title=" + windowTitle);
+            // log(android.util.Log.INFO, TAG, "[" + configPackage + "] features: " +
+            //         "skipScreenshot=" + featureEnableSkipScreenshot +
+            //         ", dimBehind=" + featureFlagDimBehind +
+            //         ", wallpaper=" + featureShowWallpaper +
+            //         ", magic=" + featureMagicFlags +
+            //         ", hideRecents=" + featureHideRecents +
+            //         ", title=" + windowTitle);
 
         } catch (Throwable t) {
-            log(android.util.Log.ERROR, TAG, "Config load error: " + t.getMessage());
+            // log(android.util.Log.ERROR, TAG, "Config load error: " + t.getMessage());
         }
     }
 
@@ -200,16 +241,18 @@ public class MainXposedModule extends XposedModule {
                             .setPriority(XposedInterface.PRIORITY_DEFAULT)
                             .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                             .intercept(chain -> {
-                                for (Object arg : chain.getArgs()) {
-                                    if (arg instanceof WindowManager.LayoutParams) {
-                                        modifyLayoutParams((WindowManager.LayoutParams) arg);
-                                        break;
+                                if (needModifyLayout) {
+                                    for (Object arg : chain.getArgs()) {
+                                        if (arg instanceof WindowManager.LayoutParams) {
+                                            modifyLayoutParams((WindowManager.LayoutParams) arg);
+                                            break;
+                                        }
                                     }
                                 }
                                 return chain.proceed();
                             });
                 } catch (Throwable t) {
-                    log(android.util.Log.WARN, TAG, "Failed to hook " + name + ": " + t.getMessage());
+                    // log(android.util.Log.WARN, TAG, "Failed to hook " + name + ": " + t.getMessage());
                 }
             }
         }
@@ -217,16 +260,15 @@ public class MainXposedModule extends XposedModule {
 
     @SuppressLint("WrongConstant")
     private void modifyLayoutParams(WindowManager.LayoutParams lp) {
-        if (enabledFeatures.contains("FLAG_DIM_BEHIND_0")) {
+        if (featureFlagDimBehind) {
             lp.flags &= ~WindowManager.LayoutParams.FLAG_DIM_BEHIND;
             lp.dimAmount = 0f;
         }
-        if (enabledFeatures.contains("show_wallpaper")) {
-            lp.flags |= 0x100000; // FLAG_SHOW_WALLPAPER
+        if (featureShowWallpaper) {
+            lp.flags |= 0x100000;
         }
-        if (enabledFeatures.contains("magic_flags")) {
-            int magicFlags = 0x40000 | 0x200 | 0x20 | 0x8 | 0x20000;
-            lp.flags |= magicFlags;
+        if (featureMagicFlags) {
+            lp.flags |= (0x40000 | 0x200 | 0x20 | 0x8 | 0x20000);
         }
         if (windowTitle != null) {
             try {
@@ -246,73 +288,75 @@ public class MainXposedModule extends XposedModule {
             String name = m.getName();
             if ("setView".equals(name) || "relayoutWindow".equals(name) || "performTraversals".equals(name)) {
                 try {
-                    hook(m).setPriority(XposedInterface.PRIORITY_DEFAULT)
-                            .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                if ("setView".equals(name)) {
+                    if ("setView".equals(name)) {
+                        hook(m).setPriority(XposedInterface.PRIORITY_DEFAULT)
+                                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
                                     chain.proceed();
                                     applySecure(chain.getThisObject());
                                     return null;
-                                } else if ("relayoutWindow".equals(name)) {
+                                });
+                    } else if ("relayoutWindow".equals(name)) {
+                        hook(m).setPriority(XposedInterface.PRIORITY_DEFAULT)
+                                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
                                     secureApplied.remove(chain.getThisObject());
                                     Object result = chain.proceed();
                                     applySecure(chain.getThisObject());
                                     return result;
-                                } else {
+                                });
+                    } else { // performTraversals
+                        hook(m).setPriority(XposedInterface.PRIORITY_DEFAULT)
+                                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
                                     applySecure(chain.getThisObject());
                                     return chain.proceed();
-                                }
-                            });
+                                });
+                    }
                 } catch (Throwable t) {
-                    log(android.util.Log.WARN, TAG, "Failed to hook " + name + " for anti-screenshot: " + t.getMessage());
+                    // log(android.util.Log.WARN, TAG, "Failed to hook " + name + " for anti-screenshot: " + t.getMessage());
                 }
             }
         }
     }
 
     private void applySecure(Object vri) {
-        if (!sCacheReady || secureApplied.contains(vri)) return;
+        if (!sCacheReady) return;
+
+        if (!secureApplied.add(vri)) {
+            return; // 已处理
+        }
 
         Object sc = getValidSurface(vri);
-        if (sc == null) return;
+        if (sc == null) {
+            secureApplied.remove(vri);
+            return;
+        }
 
         Object txn = null;
         try {
             txn = sTxnConstructor.newInstance();
             boolean applied = false;
             if (sTxnSetSkipScreenshot != null) {
-                try {
-                    sTxnSetSkipScreenshot.invoke(txn, sc, true);
-                    applied = true;
-                } catch (Throwable ignored) {
-                }
+                try { sTxnSetSkipScreenshot.invoke(txn, sc, true); applied = true; } catch (Throwable ignored) {}
             }
             if (!applied && sTxnSetSkipScreenshotLegacy != null) {
-                try {
-                    sTxnSetSkipScreenshotLegacy.invoke(txn, true);
-                    applied = true;
-                } catch (Throwable ignored) {
-                }
+                try { sTxnSetSkipScreenshotLegacy.invoke(txn, true); applied = true; } catch (Throwable ignored) {}
             }
             if (!applied && sTxnSetSecure != null) {
-                try {
-                    sTxnSetSecure.invoke(txn, sc, true);
-                    applied = true;
-                } catch (Throwable ignored) {
-                }
+                try { sTxnSetSecure.invoke(txn, sc, true); applied = true; } catch (Throwable ignored) {}
             }
 
             if (applied) {
                 sTxnApply.invoke(txn);
-                secureApplied.add(vri);
+            } else {
+                secureApplied.remove(vri);
             }
         } catch (Throwable ignored) {
+            secureApplied.remove(vri);
         } finally {
             if (txn != null) {
-                try {
-                    sTxnClose.invoke(txn);
-                } catch (Throwable ignored) {
-                }
+                try { sTxnClose.invoke(txn); } catch (Throwable ignored) {}
             }
         }
     }
@@ -324,33 +368,41 @@ public class MainXposedModule extends XposedModule {
             if (sc != null && sScClass.isInstance(sc) && Boolean.TRUE.equals(sScIsValid.invoke(sc))) {
                 return sc;
             }
-        } catch (Throwable ignored) {
-        }
+        } catch (Throwable ignored) {}
         return null;
     }
 
     // ==================== 隐藏后台卡片 ====================
     private void installHideRecentsHook() throws Exception {
-        Class<?> activityClass = Activity.class;
-        Method onCreate = activityClass.getDeclaredMethod("onCreate", android.os.Bundle.class);
+        if (sActivityOnCreateMethod == null) {
+            synchronized (sLock) {
+                if (sActivityOnCreateMethod == null) {
+                    sActivityOnCreateMethod = Activity.class.getDeclaredMethod("onCreate", android.os.Bundle.class);
+                }
+            }
+        }
 
-        hook(onCreate)
+        hook(sActivityOnCreateMethod)
                 .setPriority(XposedInterface.PRIORITY_DEFAULT)
                 .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
                     chain.proceed();
                     Activity activity = (Activity) chain.getThisObject();
-                    try {
-                        ActivityManager am = (ActivityManager) activity.getSystemService(Activity.ACTIVITY_SERVICE);
-                        if (am != null) {
-                            for (ActivityManager.AppTask task : am.getAppTasks()) {
-                                if (task.getTaskInfo().taskId == activity.getTaskId()) {
-                                    task.setExcludeFromRecents(true);
-                                    break;
+                    if (excludedActivities.add(activity)) {
+                        try {
+                            ActivityManager am = (ActivityManager) activity.getSystemService(Activity.ACTIVITY_SERVICE);
+                            if (am != null) {
+                                java.util.List<ActivityManager.AppTask> tasks = am.getAppTasks();
+                                if (tasks != null) {
+                                    for (ActivityManager.AppTask task : tasks) {
+                                        if (task.getTaskInfo().taskId == activity.getTaskId()) {
+                                            task.setExcludeFromRecents(true);
+                                            break;
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    } catch (Throwable ignored) {
+                        } catch (Throwable ignored) {}
                     }
                     return null;
                 });
