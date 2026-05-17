@@ -14,7 +14,7 @@ The core functionality of this module is inspired by the following excellent pro
 
 - [SpoofTitle](https://github.com/ZhongYeZi-meow/SpoofTitle) – 伪装窗口标题模块 (v1.1) 
 
-- [-HideScreen-](https://github.com/zjkkzk/-HideScreen-) – 通用防截屏模块（问题修复灵感）
+- [-HideScreen-](https://github.com/zjkkzk/-HideScreen) – 通用防截屏模块（问题修复灵感）
 
 ---
 
@@ -154,4 +154,4 @@ The user assumes all responsibility for any consequences arising from the use of
 ## 致谢
 
 - [SpoofTitle](https://github.com/ZhongYeZi-meow/SpoofTitle) – 窗口标题伪装逻辑
-- [-HideScreen-](https://github.com/zjkkzk/-HideScreen-) – 防截屏功能参考与问题修复
+- [-HideScreen-](https://github.com/zjkkzk/-HideScreen) – 防截屏功能参考与问题修复
