@@ -26,6 +26,15 @@ public class App extends Application implements XposedServiceHelper.OnServiceLis
         listeners.remove(listener);
     }
 
+    public static void notifyServiceUpdate() {
+        XposedService svc = sService;
+        if (svc != null) {
+            for (ServiceListener l : listeners) {
+                l.onServiceChanged(svc);
+            }
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();

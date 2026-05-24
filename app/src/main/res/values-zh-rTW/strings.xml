@@ -13,7 +13,7 @@
     <string name="title">修改視窗標題為</string>
     <string name="user_title">輸入自訂標題</string>
     <string name="modules">請先啟用模組並將應用程式加入作用域</string>
-    <string name="android_system_com_android_systemui">切勿勾選系統關鍵元件 (android/system/com.android.systemui)</string>
+    <string name="android_system_com_android_systemui">切勿勾選系統關鍵元件 (android/scom.android.systemui)</string>
     <string name="global_title">全域視窗標題</string>
     <string name="user_title_name">輸入自訂標題</string>
     <string name="app_icon">應用程式圖示</string>
@@ -29,7 +29,14 @@
     <string name="title_mode_custom">自訂</string>
     <string name="show_wallpaper">允許螢幕截圖至桌布層</string>
     <string name="desc_show_wallpaper_app">僅部分應用程式生效</string>
-
+    <string name="system_hide_master">系統層隱藏（僅Oplus 16）</string>
+    <string name="system_hide_enabled">系統層隱藏已開啟，重啟後生效</string>
+    <string name="system_hide_disabled">系統層隱藏已關閉，重啟後生效</string>
+    <string name="scope_request_failed">作用域請求失敗：%s</string>
+    <string name="system_framework_label">系統框架</string>
+    <string name="must_remove_scope_suffix">（必須取消作用域）</string>
+    <string name="not_in_scope_suffix">（不在作用域中）</string>
+    <string name="framework_not_connected">框架未連線，無法刷新</string>
     <string-array name="brand_labels">
         <item>無</item>
         <item>OPPO/一加/真我</item>

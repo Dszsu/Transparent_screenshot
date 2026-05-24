@@ -4,16 +4,18 @@ public class AppInfo {
     private final String label;
     private final String packageName;
     private final boolean isInScope;
-    private final boolean isSystemCritical;
+    private final boolean isSystemApp;
     private boolean hasConfig;
+    private boolean isSystemCritical;
 
     public AppInfo(String label, String packageName, boolean isInScope, boolean hasConfig,
-                   boolean isSystemCritical) {
+                   boolean isSystemCritical, boolean isSystemApp) {
         this.label = label;
         this.packageName = packageName;
         this.isInScope = isInScope;
         this.hasConfig = hasConfig;
         this.isSystemCritical = isSystemCritical;
+        this.isSystemApp = isSystemApp;
     }
 
     public String getLabel() {
@@ -38,5 +40,13 @@ public class AppInfo {
 
     public boolean isSystemCritical() {
         return isSystemCritical;
+    }
+
+    public void setSystemCritical(boolean systemCritical) {
+        this.isSystemCritical = systemCritical;
+    }
+
+    public boolean isSystemApp() {
+        return isSystemApp;
     }
 }

@@ -40,6 +40,11 @@
             android:label="品牌设置"
             android:parentActivityName=".MainActivity"
             android:exported="false" />
+        <activity
+            android:name=".SystemHideActivity"
+            android:exported="false"
+            android:label="系统层隐藏"
+            android:parentActivityName=".MainActivity" />
 
     </application>
 </manifest>

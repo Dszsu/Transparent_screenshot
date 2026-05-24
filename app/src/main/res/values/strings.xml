@@ -13,7 +13,7 @@
     <string name="title">Change window title to</string>
     <string name="user_title">Enter custom title</string>
     <string name="modules">Please enable the module and add apps to the scope first</string>
-    <string name="android_system_com_android_systemui">Do NOT select critical system components (android/system/com.android.systemui)</string>
+    <string name="android_system_com_android_systemui">Do NOT select critical system components (android/com.android.systemui)</string>
     <string name="global_title">Global window title</string>
     <string name="user_title_name">Enter custom title</string>
     <string name="app_icon">App icon</string>
@@ -29,6 +29,14 @@
     <string name="title_mode_custom" translatable="false">Custom</string>
     <string name="show_wallpaper" translatable="false">Allow screenshot to wallpaper layer</string>
     <string name="desc_show_wallpaper_app" translatable="false">Only effective for some apps</string>
+    <string name="system_hide_master">System-level hiding (Oplus 16 only)</string>
+    <string name="system_hide_enabled">System-level hiding enabled, effective after reboot</string>
+    <string name="system_hide_disabled">System-level hiding disabled, effective after reboot</string>
+    <string name="scope_request_failed">Scope request failed: %s</string>
+    <string name="system_framework_label">System Framework</string>
+    <string name="must_remove_scope_suffix"> (Must Remove from Scope)</string>
+    <string name="not_in_scope_suffix"> (Not in Scope)</string>
+    <string name="framework_not_connected">Framework not connected, cannot refresh</string>
 
     <string-array name="brand_labels">
         <item>None</item>

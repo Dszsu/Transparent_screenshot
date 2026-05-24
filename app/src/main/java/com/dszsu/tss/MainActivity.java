@@ -1,6 +1,7 @@
 package com.dszsu.tss;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Menu;
@@ -15,10 +16,8 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.dszsu.tss.databinding.ActivityMainBinding;
 
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import io.github.libxposed.service.XposedService;
 
@@ -29,10 +28,7 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
     private AppAdapter adapter;
     private XposedService service;
     private String currentSearch = "";
-
-    private static final Set<String> SYSTEM_CRITICAL_PACKAGES = new HashSet<>(Arrays.asList(
-            "android", "system", "com.android.systemui", "oplus"
-    ));
+    private boolean systemHideEnabled = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,9 +40,13 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
 
         adapter = new AppAdapter(getPackageManager(), getPackageManager().getDefaultActivityIcon(), app -> {
             if (app.isSystemCritical()) return;
-            Intent intent = new Intent(MainActivity.this, ConfigActivity.class);
-            intent.putExtra("packageName", app.getPackageName());
-            startActivity(intent);
+            if ("system".equals(app.getPackageName())) {
+                startActivity(new Intent(MainActivity.this, SystemHideActivity.class));
+            } else {
+                Intent intent = new Intent(MainActivity.this, ConfigActivity.class);
+                intent.putExtra("packageName", app.getPackageName());
+                startActivity(intent);
+            }
         });
 
         binding.rvApps.setLayoutManager(new LinearLayoutManager(this));
@@ -57,7 +57,7 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
                 AppListRepository.getInstance().refreshData(service, getPackageManager(), this);
             } else {
                 binding.swipeRefresh.setRefreshing(false);
-                Toast.makeText(this, "框架未连接，无法刷新", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.framework_not_connected, Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -75,23 +75,43 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
         });
 
         App.addListener(this);
+        showEmptyHint(true);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (service != null) {
+            loadSystemHideEnabled();
+            AppListRepository.getInstance().refreshData(service, getPackageManager(), this);
+        }
     }
 
     @Override
     public void onServiceChanged(XposedService svc) {
         service = svc;
         if (svc != null) {
+            loadSystemHideEnabled();
             AppListRepository.getInstance().refreshData(svc, getPackageManager(), this);
-            checkScopeWarning(svc.getScope());
+        } else {
+            systemHideEnabled = false;
+            adapter.submitList(Collections.emptyList());
+            binding.swipeRefresh.setRefreshing(false);
+            showEmptyHint(true);
         }
     }
 
     @Override
     public void onRefreshComplete(List<AppInfo> filteredList) {
+        for (AppInfo app : filteredList) {
+            if ("system".equals(app.getPackageName())) {
+                app.setSystemCritical(!systemHideEnabled);
+                break;
+            }
+        }
         adapter.submitList(filteredList);
         binding.swipeRefresh.setRefreshing(false);
         showEmptyHint(filteredList.isEmpty());
-        if (service != null) checkScopeWarning(service.getScope());
     }
 
     @Override
@@ -99,33 +119,33 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
         binding.swipeRefresh.setRefreshing(isLoading);
     }
 
+    private void loadSystemHideEnabled() {
+        if (service == null) {
+            systemHideEnabled = false;
+            return;
+        }
+        try {
+            SharedPreferences sysPrefs = service.getRemotePreferences("system_hide");
+            systemHideEnabled = sysPrefs.contains("packages");
+        } catch (Throwable t) {
+            systemHideEnabled = false;
+        }
+    }
+
     private void applyFilter() {
         List<AppInfo> filtered = AppListRepository.getInstance().filterApps(currentSearch);
+        for (AppInfo app : filtered) {
+            if ("system".equals(app.getPackageName())) {
+                app.setSystemCritical(!systemHideEnabled);
+                break;
+            }
+        }
         adapter.submitList(filtered);
         showEmptyHint(filtered.isEmpty());
     }
 
     private void showEmptyHint(boolean empty) {
         binding.emptyHint.setVisibility(empty ? View.VISIBLE : View.GONE);
-    }
-
-    private void checkScopeWarning(List<String> scopeList) {
-        if (scopeList == null) {
-            binding.warningHint.setVisibility(View.GONE);
-            return;
-        }
-        boolean dangerous = false;
-        for (String scopePkg : scopeList) {
-            String lower = scopePkg.toLowerCase();
-            for (String critical : SYSTEM_CRITICAL_PACKAGES) {
-                if (lower.equals(critical) || lower.startsWith(critical + ".")) {
-                    dangerous = true;
-                    break;
-                }
-            }
-            if (dangerous) break;
-        }
-        binding.warningHint.setVisibility(dangerous ? View.VISIBLE : View.GONE);
     }
 
     @Override
