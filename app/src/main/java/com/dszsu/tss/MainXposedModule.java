@@ -9,6 +9,7 @@ import android.util.Log;
 import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -17,7 +18,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,89 +26,118 @@ import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedModuleInterface;
 
-@SuppressWarnings("FieldCanBeLocal")
+@SuppressWarnings({"FieldCanBeLocal"})
 public class MainXposedModule extends XposedModule {
 
     private static final String TAG = "TransScreenshot";
     private static final String SYSTEM_HIDE_GROUP = "system_hide";
 
+
+    private static final int FLAG_STEALTH_OVERLAY =
+            0x00000010   // FLAG_NOT_FOCUSABLE
+                    | 0x00000200 // FLAG_NOT_TOUCH_MODAL
+                    | 0x00040000;// FLAG_WATCH_OUTSIDE_TOUCH
+
+    private static volatile boolean sAppHooksInstalled = false;
     private static volatile boolean sSystemHooksInstalled = false;
-    private static volatile boolean sWindowManagerHookInstalled = false;
-    private static volatile boolean sAntiScreenshotHookInstalled = false;
-    private static volatile boolean sHideRecentsHookInstalled = false;
-    private static volatile Class<?> sSystemSurfaceControlClass = null;
-    private static volatile boolean sAppReflectionReady = false;
-    private static volatile Class<?> sAppSurfaceControlClass = null;
-    private static volatile Field sAppSurfaceControlField = null;
-    private static volatile Method sAppSurfaceControlIsValid = null;
-    private static volatile Constructor<?> sAppTxnConstructor = null;
-    private static volatile Method sAppTxnSetSkipScreenshot = null;
-    private static volatile Method sAppTxnSetSkipScreenshotLegacy = null;
-    private static volatile Method sAppTxnSetSecure = null;
-    private static volatile Method sAppTxnApply = null;
-    private static volatile Method sAppTxnClose = null;
-    private final Object systemLock = new Object();
     private final Object appLock = new Object();
-    private final Object configLock = new Object();
-    private final Map<String, String> processConfigCache = new ConcurrentHashMap<>();
-    private final Object windowCacheLock = new Object();
-    private final WeakHashMap<Object, Boolean> windowHideCache = new WeakHashMap<>();
-    private volatile ProcessConfig currentConfig = ProcessConfig.EMPTY;
-    private volatile String activeConfigPackage = null;
-    private volatile ClassLoader currentAppClassLoader = null;
-    private final SharedPreferences.OnSharedPreferenceChangeListener appPrefsListener =
-            (prefs, key) -> reloadCurrentConfig();
+    private static volatile boolean sAppCacheReady = false;
+    private static volatile Field sSurfaceControlField;
+    private static volatile Class<?> sScClass;
+    private static volatile Method sScIsValid;
+    private static volatile Constructor<?> sTxnConstructor;
+
     private volatile boolean systemHideEnabled = false;
     private volatile Set<String> systemHiddenPackages = Collections.emptySet();
+    private static volatile Method sTxnSetSkipScreenshot;
+    private static volatile Method sTxnSetSkipScreenshotLegacy;
+    private static volatile Method sTxnSetSecure;
+    private static volatile Method sTxnApply;
+    private static volatile Method sTxnClose;
+    private final Object systemLock = new Object();
+    private final Set<String> enabledFeatures = Collections.synchronizedSet(new HashSet<>());
+    private final Map<String, String> processNameCache = new ConcurrentHashMap<>();
+    private final Map<String, SharedPreferences.OnSharedPreferenceChangeListener> appPrefsListeners
+            = new ConcurrentHashMap<>();
+    private final WeakHashMap<Object, Boolean> windowHideCache = new WeakHashMap<>();
+    private final Set<Object> systemSecureApplied = Collections.newSetFromMap(new WeakHashMap<>());
+    private final Set<Object> taskSecureApplied = Collections.newSetFromMap(new WeakHashMap<>());
+    private final Set<Object> secureApplied = Collections.newSetFromMap(new WeakHashMap<>());
+    private final Set<Activity> recentsExcluded = Collections.newSetFromMap(new WeakHashMap<>());
+    private volatile String windowTitle = null;
+    private int systemTxnMethodType = 0;
+    private volatile int cacheVersion = 0;
     private final SharedPreferences.OnSharedPreferenceChangeListener systemPrefsListener =
             (prefs, key) -> {
-                if ("packages".equals(key)) {
-                    loadSystemHiddenPackages(prefs);
-                    clearWindowHideCache();
-                    log(Log.INFO, TAG, "System hide packages updated");
-                }
+                if (!"packages".equals(key)) return;
+                loadSystemHiddenPackages(prefs);
+                //noinspection NonAtomicOperationOnVolatileField
+                cacheVersion++;
+                log(Log.INFO, TAG, "System hide packages updated");
             };
+
     private Class<?> windowStateClass;
+    private int localCacheVersion = -1;
+    private Class<?> windowStateAnimatorClass;
+    private Class<?> windowSurfaceControllerClass;
     private Class<?> transactionClass;
+    private Class<?> surfaceControlClass;
+    @Nullable
     private Class<?> taskClass;
+    @Nullable
+    private Field windowStateAttrsField;
+
     private Method getOwningPackageMethod;
     private Method getWindowTagMethod;
+    @Nullable
+    private Field layoutParamsPackageNameField;
+    @Nullable
     private Method getTaskMethod;
-    private Method getTaskSurfaceControlMethod;
-    private Field mWindowStateSurfaceControlField;
-
-    private final Set<Object> secureApplied = Collections.synchronizedSet(
-            Collections.newSetFromMap(new WeakHashMap<>())
-    );
-    private Method setSkipScreenshotMethod;
+    @Nullable
+    private Method taskGetSurfaceControlMethod;
+    private Field animatorWinField;
+    @Nullable
+    private Field animatorSurfaceControllerField;
+    @Nullable
+    private Field surfaceControllerSurfaceField;
+    @Nullable
+    private Field winStateAnimatorField;
+    @Nullable
+    private Field windowStateScField;
+    private Constructor<?> systemTxnConstructor;
+    @Nullable
+    private Method systemTxnSetSkipScreenshot;
+    @Nullable
+    private Method systemTxnSetSecure;
+    private Method systemTxnApply;
+    private Method systemTxnClose;
 
     private static Method findMethodInHierarchy(Class<?> cls, String name, Class<?>... paramTypes)
             throws NoSuchMethodException {
-        Class<?> current = cls;
-        while (current != null) {
+        if (cls == null) throw new NullPointerException("cls must not be null");
+        for (Class<?> c = cls; c != null; c = c.getSuperclass()) {
             try {
-                return current.getDeclaredMethod(name, paramTypes);
-            } catch (NoSuchMethodException e) {
-                current = current.getSuperclass();
+                return c.getDeclaredMethod(name, paramTypes);
+            } catch (NoSuchMethodException ignored) {
             }
         }
-        throw new NoSuchMethodException(cls.getName() + "." + name);
+        throw new NoSuchMethodException(cls.getName() + "#" + name);
     }
 
     private static Field findFieldInHierarchy(Class<?> cls, String name) throws NoSuchFieldException {
-        Class<?> current = cls;
-        while (current != null) {
+        if (cls == null) throw new NullPointerException("cls must not be null");
+        for (Class<?> c = cls; c != null; c = c.getSuperclass()) {
             try {
-                return current.getDeclaredField(name);
-            } catch (NoSuchFieldException e) {
-                current = current.getSuperclass();
+                return c.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
             }
         }
-        throw new NoSuchFieldException(cls.getName() + "." + name);
+        throw new NoSuchFieldException(cls.getName() + "#" + name);
     }
 
     @Override
-    public void onSystemServerStarting(@NonNull XposedModuleInterface.SystemServerStartingParam param) {
+    public void onSystemServerStarting(
+            @NonNull XposedModuleInterface.SystemServerStartingParam param) {
         super.onSystemServerStarting(param);
         try {
             SharedPreferences sysPrefs = getRemotePreferences(SYSTEM_HIDE_GROUP);
@@ -116,65 +145,56 @@ public class MainXposedModule extends XposedModule {
             sysPrefs.registerOnSharedPreferenceChangeListener(systemPrefsListener);
             installSystemHooks(param.getClassLoader());
         } catch (Throwable t) {
-            log(Log.ERROR, TAG, "System-server init error: " + t.getMessage());
+            log(Log.ERROR, TAG, "Failed to init system hooks: " + t);
         }
     }
 
     @Override
     public void onPackageReady(@NonNull PackageReadyParam param) {
-        String pkg = param.getPackageName();
-        String configPackage = resolveConfigPackage(pkg);
-        log(Log.INFO, TAG, "Injected into " + pkg + ", config key: " + configPackage);
+        String configPackage = resolveConfigPackage(param.getPackageName());
+        loadConfig(configPackage);
 
-        activeConfigPackage = configPackage;
-        currentAppClassLoader = param.getClassLoader();
-
-        synchronized (configLock) {
-            loadConfig(configPackage);
+        if (!sAppHooksInstalled) {
+            synchronized (appLock) {
+                if (!sAppHooksInstalled) {
+                    try {
+                        initAppReflection(param.getClassLoader());
+                        if (needsLayoutParamChanges()) {
+                            installWindowManagerHook(param);
+                        }
+                        if (enabledFeatures.contains("enable_skip_screenshot")) {
+                            installAntiScreenshotHook(param);
+                        }
+                        if (enabledFeatures.contains("hide_recent_card")) {
+                            installHideRecentsHook();
+                        }
+                        sAppHooksInstalled = true;
+                    } catch (Throwable t) {
+                        log(Log.ERROR, TAG, "App hook init failed: " + t);
+                    }
+                }
+            }
         }
-
-        registerAppConfigListeners(configPackage);
-        ensureAppHooksInstalled(currentAppClassLoader);
     }
 
-    @SuppressLint({"DiscouragedPrivateApi", "PrivateApi"})
+    @SuppressLint("DiscouragedPrivateApi")
     private String getProcessName() {
         try {
-            Class<?> atClass = Class.forName("android.app.ActivityThread");
+            @SuppressLint("PrivateApi") Class<?> atClass = Class.forName("android.app.ActivityThread");
             Object at = atClass.getDeclaredMethod("currentActivityThread").invoke(null);
             return (String) atClass.getDeclaredMethod("getProcessName").invoke(at);
-        } catch (Throwable t) {
-            return null;
+        } catch (Throwable ignored) {
         }
+        return null;
     }
 
     private String resolveConfigPackage(String fallbackPkg) {
         String processName = getProcessName();
         String key = processName != null ? processName : fallbackPkg;
-        return processConfigCache.computeIfAbsent(key, k -> {
+        return processNameCache.computeIfAbsent(key, k -> {
             int idx = k.indexOf(':');
             return idx > 0 ? k.substring(0, idx) : k;
         });
-    }
-
-    private void registerAppConfigListeners(String configPackage) {
-        try {
-            SharedPreferences globalPrefs = getRemotePreferences("global");
-            SharedPreferences pkgPrefs = getRemotePreferences(configPackage.toLowerCase(Locale.ROOT));
-            globalPrefs.registerOnSharedPreferenceChangeListener(appPrefsListener);
-            pkgPrefs.registerOnSharedPreferenceChangeListener(appPrefsListener);
-        } catch (Throwable t) {
-            log(Log.WARN, TAG, "Failed to register app prefs listeners: " + t.getMessage());
-        }
-    }
-
-    private void reloadCurrentConfig() {
-        String pkg = activeConfigPackage;
-        if (pkg == null) return;
-        synchronized (configLock) {
-            loadConfig(pkg);
-            ensureAppHooksInstalled(currentAppClassLoader);
-        }
     }
 
     private void loadConfig(String configPackage) {
@@ -190,395 +210,589 @@ public class MainXposedModule extends XposedModule {
             if (prefs.contains("hide_recent_card")) features.add("hide_recent_card");
 
             String titleValue = prefs.getString("window_title", null);
-            String finalTitle = null;
+            String resolvedTitle = null;
             if ("$global".equals(titleValue)) {
-                finalTitle = globalPrefs.getString("title", null);
-            } else if (titleValue != null) {
-                finalTitle = titleValue;
+                resolvedTitle = globalPrefs.getString("title", null);
+            } else if (titleValue != null && !titleValue.isEmpty()) {
+                resolvedTitle = titleValue;
             }
 
-            currentConfig = new ProcessConfig(
-                    features,
-                    (finalTitle != null && !finalTitle.isEmpty()) ? finalTitle : null
-            );
-            log(Log.INFO, TAG, "[" + configPackage + "] features=" + features + ", title=" + currentConfig.windowTitle);
+            synchronized (enabledFeatures) {
+                enabledFeatures.clear();
+                enabledFeatures.addAll(features);
+            }
+            windowTitle = resolvedTitle;
+
+            String lowerPkg = configPackage.toLowerCase(Locale.ROOT);
+            if (!appPrefsListeners.containsKey(lowerPkg)) {
+                SharedPreferences.OnSharedPreferenceChangeListener listener =
+                        (p, key) -> loadConfig(configPackage);
+                prefs.registerOnSharedPreferenceChangeListener(listener);
+                appPrefsListeners.put(lowerPkg, listener);
+            }
+
+            log(Log.INFO, TAG, "Config[" + configPackage + "] features=" + features
+                    + " title=" + resolvedTitle);
         } catch (Throwable t) {
-            log(Log.ERROR, TAG, "Config load error: " + t.getMessage());
-            currentConfig = ProcessConfig.EMPTY;
+            log(Log.ERROR, TAG, "Config load failed [" + configPackage + "]: " + t);
         }
     }
 
-    private void ensureAppHooksInstalled(ClassLoader cl) {
-        ProcessConfig config = currentConfig;
-        try {
-            boolean needWM = needsWindowManagerHook(config);
-            boolean needAS = config.features.contains("enable_skip_screenshot");
-            boolean needHR = config.features.contains("hide_recent_card");
-
-            if (needWM && !sWindowManagerHookInstalled) {
-                synchronized (appLock) {
-                    if (needsWindowManagerHook(currentConfig) && !sWindowManagerHookInstalled) {
-                        initAppReflection(cl);
-                        installWindowManagerHook(cl);
-                        sWindowManagerHookInstalled = true;
-                        log(Log.INFO, TAG, "WindowManager hook installed");
-                    }
-                }
-            }
-
-            if (needAS && !sAntiScreenshotHookInstalled) {
-                synchronized (appLock) {
-                    if (currentConfig.features.contains("enable_skip_screenshot") && !sAntiScreenshotHookInstalled) {
-                        initAppReflection(cl);
-                        installAntiScreenshotHook(cl);
-                        sAntiScreenshotHookInstalled = true;
-                        log(Log.INFO, TAG, "Anti-screenshot hook installed");
-                    }
-                }
-            }
-
-            if (needHR && !sHideRecentsHookInstalled) {
-                synchronized (appLock) {
-                    if (currentConfig.features.contains("hide_recent_card") && !sHideRecentsHookInstalled) {
-                        installHideRecentsHook();
-                        sHideRecentsHookInstalled = true;
-                        log(Log.INFO, TAG, "Hide-recents hook installed");
-                    }
-                }
-            }
-        } catch (Throwable t) {
-            log(Log.ERROR, TAG, "Failed to install app hooks: " + t.getMessage());
-        }
-    }
-
-    private boolean needsWindowManagerHook(ProcessConfig config) {
-        return config.windowTitle != null
-                || config.features.contains("FLAG_DIM_BEHIND_0")
-                || config.features.contains("show_wallpaper")
-                || config.features.contains("magic_flags");
+    private boolean needsLayoutParamChanges() {
+        return windowTitle != null
+                || enabledFeatures.contains("FLAG_DIM_BEHIND_0")
+                || enabledFeatures.contains("show_wallpaper")
+                || enabledFeatures.contains("magic_flags");
     }
 
     @SuppressLint("PrivateApi")
-    private void installSystemHooks(ClassLoader sysCl) throws Exception {
+    private void installSystemHooks(ClassLoader cl) throws Exception {
         if (sSystemHooksInstalled) return;
         synchronized (systemLock) {
             if (sSystemHooksInstalled) return;
-            initSystemReflection(sysCl);
 
-            Method updateSurfacePos = windowStateClass.getDeclaredMethod("updateSurfacePosition", transactionClass);
-            hook(updateSurfacePos)
-                    .setPriority(XposedInterface.PRIORITY_DEFAULT)
-                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> {
-                        Object result = chain.proceed();
-                        if (!systemHideEnabled) return result;
-                        Object winState = chain.getThisObject();
-                        if (winState == null) return result;
-                        if (!checkWindowForHide(winState)) return result;
+            initSystemReflection(cl);
 
-                        Object transaction = chain.getArgs().get(0);
-                        if (transaction == null) return result;
-
-                        try {
-                            if (mWindowStateSurfaceControlField != null) {
-                                Object sc = mWindowStateSurfaceControlField.get(winState);
-                                if (sc != null) {
-                                    setSkipScreenshotMethod.invoke(transaction, sc, true);
-                                }
-                            }
-                            Object task = getTaskMethod.invoke(winState);
-                            if (task != null && getTaskSurfaceControlMethod != null) {
-                                Object taskSurface = getTaskSurfaceControlMethod.invoke(task);
-                                if (taskSurface != null) {
-                                    setSkipScreenshotMethod.invoke(transaction, taskSurface, true);
-                                }
-                            }
-                        } catch (Throwable ignored) {
-                        }
-                        return result;
-                    });
+            installCreateSurfaceHook();
+            if (methodExists(windowStateAnimatorClass, "performShowLocked")) {
+                installShowFallbackHook();
+            }
+            if (windowStateScField != null
+                    && methodExists(windowStateClass,
+                    "prepareWindowToDisplayDuringRelayout", boolean.class)) {
+                installHighVersionHook();
+            }
+            installDestroySurfaceHook();
 
             sSystemHooksInstalled = true;
-            log(Log.INFO, TAG, "System hooks installed successfully");
+            log(Log.INFO, TAG, "System hooks installed, txnType=" + systemTxnMethodType);
         }
     }
 
     @SuppressLint("PrivateApi")
     private void initSystemReflection(ClassLoader cl) throws Exception {
         windowStateClass = Class.forName("com.android.server.wm.WindowState", false, cl);
-        sSystemSurfaceControlClass = Class.forName("android.view.SurfaceControl", false, cl);
-        transactionClass = Class.forName("android.view.SurfaceControl$Transaction", false, cl);
-        taskClass = Class.forName("com.android.server.wm.Task", false, cl);
+        windowStateAnimatorClass = Class.forName("com.android.server.wm.WindowStateAnimator", false, cl);
 
-        getOwningPackageMethod = findMethodInHierarchy(windowStateClass, "getOwningPackage");
-        getOwningPackageMethod.setAccessible(true);
+        try {
+            windowSurfaceControllerClass = Class.forName("com.android.server.wm.WindowSurfaceController", false, cl);
+        } catch (ClassNotFoundException e) {
+            log(Log.WARN, TAG, "WindowSurfaceController not found");
+            windowSurfaceControllerClass = null;
+        }
+
+        surfaceControlClass = Class.forName("android.view.SurfaceControl", false, cl);
+        transactionClass = Class.forName("android.view.SurfaceControl$Transaction", false, cl);
+
+        try {
+            taskClass = Class.forName("com.android.server.wm.Task", false, cl);
+            getTaskMethod = findMethodInHierarchy(windowStateClass, "getTask");
+            getTaskMethod.setAccessible(true);
+            taskGetSurfaceControlMethod = findMethodInHierarchy(taskClass, "getSurfaceControl");
+            taskGetSurfaceControlMethod.setAccessible(true);
+        } catch (Throwable t) {
+            log(Log.WARN, TAG, "Task reflection failed: " + t.getMessage());
+            taskClass = null;
+            getTaskMethod = null;
+            taskGetSurfaceControlMethod = null;
+        }
+
+        try {
+            getOwningPackageMethod = findMethodInHierarchy(windowStateClass, "getOwningPackage");
+            getOwningPackageMethod.setAccessible(true);
+        } catch (Throwable ignored) {
+            getOwningPackageMethod = null;
+        }
 
         getWindowTagMethod = findMethodInHierarchy(windowStateClass, "getWindowTag");
         getWindowTagMethod.setAccessible(true);
 
-        getTaskMethod = findMethodInHierarchy(windowStateClass, "getTask");
-        getTaskMethod.setAccessible(true);
-
-        getTaskSurfaceControlMethod = findMethodInHierarchy(taskClass, "getSurfaceControl");
-        getTaskSurfaceControlMethod.setAccessible(true);
+        animatorWinField = findFieldInHierarchy(windowStateAnimatorClass, "mWin");
+        animatorWinField.setAccessible(true);
 
         try {
-            mWindowStateSurfaceControlField = findFieldInHierarchy(windowStateClass, "mSurfaceControl");
-            mWindowStateSurfaceControlField.setAccessible(true);
-        } catch (Throwable ignored) {
-            mWindowStateSurfaceControlField = null;
+            animatorSurfaceControllerField =
+                    findFieldInHierarchy(windowStateAnimatorClass, "mSurfaceController");
+            animatorSurfaceControllerField.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            log(Log.WARN, TAG, "mSurfaceController not found in WindowStateAnimator");
+            animatorSurfaceControllerField = null;
         }
 
-        setSkipScreenshotMethod = transactionClass.getMethod("setSkipScreenshot", sSystemSurfaceControlClass, boolean.class);
-        setSkipScreenshotMethod.setAccessible(true);
+        if (windowSurfaceControllerClass != null) {
+            try {
+                surfaceControllerSurfaceField =
+                        findFieldInHierarchy(windowSurfaceControllerClass, "mSurfaceControl");
+                surfaceControllerSurfaceField.setAccessible(true);
+            } catch (NoSuchFieldException e) {
+                log(Log.WARN, TAG, "mSurfaceControl not found in WindowSurfaceController");
+                surfaceControllerSurfaceField = null;
+            }
+        } else {
+            surfaceControllerSurfaceField = null;
+        }
+
+        try {
+            winStateAnimatorField = findFieldInHierarchy(windowStateClass, "mWinAnimator");
+            winStateAnimatorField.setAccessible(true);
+        } catch (Throwable ignored) {
+            winStateAnimatorField = null;
+        }
+
+        try {
+            windowStateScField = findFieldInHierarchy(windowStateClass, "mSurfaceControl");
+            windowStateScField.setAccessible(true);
+        } catch (Throwable ignored) {
+            windowStateScField = null;
+        }
+
+        try {
+            windowStateAttrsField = findFieldInHierarchy(windowStateClass, "mAttrs");
+            windowStateAttrsField.setAccessible(true);
+            layoutParamsPackageNameField = WindowManager.LayoutParams.class.getField("packageName");
+        } catch (Throwable t) {
+            log(Log.WARN, TAG, "Direct field access for package name unavailable: " + t.getMessage());
+            windowStateAttrsField = null;
+            layoutParamsPackageNameField = null;
+        }
+
+        systemTxnConstructor = transactionClass.getDeclaredConstructor();
+        systemTxnConstructor.setAccessible(true);
+        systemTxnApply = transactionClass.getDeclaredMethod("apply");
+        systemTxnApply.setAccessible(true);
+        systemTxnClose = transactionClass.getDeclaredMethod("close");
+        systemTxnClose.setAccessible(true);
+
+        try {
+            systemTxnSetSkipScreenshot = transactionClass.getDeclaredMethod(
+                    "setSkipScreenshot", surfaceControlClass, boolean.class);
+            systemTxnSetSkipScreenshot.setAccessible(true);
+            systemTxnMethodType = 1;
+        } catch (Throwable ignored) {
+        }
+
+        try {
+            systemTxnSetSecure = transactionClass.getDeclaredMethod(
+                    "setSecure", surfaceControlClass, boolean.class);
+            systemTxnSetSecure.setAccessible(true);
+            if (systemTxnMethodType == 0) systemTxnMethodType = 2;
+        } catch (Throwable ignored) {
+        }
+
+        if (systemTxnMethodType == 0) {
+            log(Log.WARN, TAG, "Neither setSkipScreenshot nor setSecure found");
+        }
+    }
+
+    private void installCreateSurfaceHook() throws Exception {
+        Method m = findMethodInHierarchy(windowStateAnimatorClass, "createSurfaceLocked");
+        hook(m)
+                .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    applySkipScreenshotIfNeeded(chain.getThisObject());
+                    return result;
+                });
+    }
+
+    private void installShowFallbackHook() throws Exception {
+        Method m = findMethodInHierarchy(windowStateAnimatorClass, "performShowLocked");
+        hook(m)
+                .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    applySkipScreenshotIfNeeded(chain.getThisObject());
+                    return result;
+                });
+    }
+
+    private void installHighVersionHook() {
+        try {
+            Method m = findMethodInHierarchy(windowStateClass,
+                    "prepareWindowToDisplayDuringRelayout", boolean.class);
+            hook(m)
+                    .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result = chain.proceed();
+                        Object winState = chain.getThisObject();
+                        if (shouldHideWindow(winState)) {
+                            try {
+                                Object sc = null;
+                                if (windowStateScField != null) {
+                                    sc = windowStateScField.get(winState);
+                                }
+                                if (sc != null) applySkipScreenshot(sc);
+                            } catch (Throwable ignored) {
+                            }
+                            applySkipScreenshotToTask(winState);
+                        }
+                        return result;
+                    });
+        } catch (NoSuchMethodException ignored) {
+        }
+    }
+
+    private void installDestroySurfaceHook() {
+        try {
+            Method m = findMethodInHierarchy(windowStateAnimatorClass, "destroySurfaceLocked");
+            hook(m)
+                    .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object animator = chain.getThisObject();
+                        Object sc = null;
+                        Object winState = null;
+                        try {
+                            if (animatorSurfaceControllerField != null) {
+                                Object ctrl = animatorSurfaceControllerField.get(animator);
+                                if (ctrl != null && surfaceControllerSurfaceField != null) {
+                                    sc = surfaceControllerSurfaceField.get(ctrl);
+                                }
+                            }
+                            winState = animatorWinField.get(animator);
+                        } catch (Throwable ignored) {
+                        }
+
+                        Object result = chain.proceed();
+
+                        if (sc != null) systemSecureApplied.remove(sc);
+                        if (winState != null) windowHideCache.remove(winState);
+                        return result;
+                    });
+        } catch (Throwable ignored) {
+        }
     }
 
     private void loadSystemHiddenPackages(SharedPreferences prefs) {
-        // 根据 packages 键是否存在判断启用
         if (!prefs.contains("packages")) {
             systemHideEnabled = false;
             systemHiddenPackages = Collections.emptySet();
             return;
         }
-
-        systemHideEnabled = true;
-        Set<String> pkgs = prefs.getStringSet("packages", new HashSet<>());
-        if (pkgs.isEmpty()) {
-            systemHiddenPackages = Collections.emptySet();
-            return;
+        Set<String> raw = prefs.getStringSet("packages", Collections.emptySet());
+        Set<String> lower = new HashSet<>(raw.size() * 2);
+        for (String p : raw) {
+            if (p != null && !p.isEmpty()) lower.add(p.toLowerCase(Locale.ROOT));
         }
+        systemHiddenPackages = Collections.unmodifiableSet(lower);
+        systemHideEnabled = true;
+    }
 
-        Set<String> lowerPkgs = new HashSet<>();
-        for (String p : pkgs) {
-            if (p != null && !p.isEmpty()) {
-                lowerPkgs.add(p.toLowerCase(Locale.ROOT));
+    private void applySkipScreenshotIfNeeded(Object animator) {
+        if (!systemHideEnabled || animator == null) return;
+        try {
+            Object winState = animatorWinField.get(animator);
+            if (winState == null || !shouldHideWindow(winState)) return;
+
+            if (animatorSurfaceControllerField != null) {
+                Object ctrl = animatorSurfaceControllerField.get(animator);
+                if (ctrl != null) {
+                    Object sc = null;
+                    if (surfaceControllerSurfaceField != null) {
+                        sc = surfaceControllerSurfaceField.get(ctrl);
+                    }
+                    if (sc == null && windowStateScField != null) {
+                        sc = windowStateScField.get(winState);
+                    }
+                    if (sc != null) applySkipScreenshot(sc);
+                }
+            } else if (windowStateScField != null) {
+                Object sc = windowStateScField.get(winState);
+                if (sc != null) applySkipScreenshot(sc);
+            }
+
+            applySkipScreenshotToTask(winState);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void applySkipScreenshotToTask(Object winState) {
+        if (getTaskMethod == null || taskGetSurfaceControlMethod == null) return;
+        try {
+            Object task = getTaskMethod.invoke(winState);
+            if (task == null || !taskSecureApplied.add(task)) return;
+            Object taskSc = taskGetSurfaceControlMethod.invoke(task);
+            if (taskSc != null) applySkipScreenshot(taskSc);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void applySkipScreenshot(Object sc) {
+        if (systemTxnMethodType == 0) return;
+        if (!systemSecureApplied.add(sc)) return;
+
+        Object txn = null;
+        boolean success = false;
+        try {
+            txn = systemTxnConstructor.newInstance();
+            if (systemTxnMethodType == 1) {
+                if (systemTxnSetSkipScreenshot != null) {
+                    systemTxnSetSkipScreenshot.invoke(txn, sc, true);
+                }
+            } else {
+                if (systemTxnSetSecure != null) {
+                    systemTxnSetSecure.invoke(txn, sc, true);
+                }
+            }
+            systemTxnApply.invoke(txn);
+            success = true;
+        } catch (Throwable t) {
+            if (systemTxnMethodType == 1 && systemTxnSetSecure != null) {
+                log(Log.WARN, TAG, "setSkipScreenshot failed, falling back to setSecure");
+                systemTxnMethodType = 2;
+                try {
+                    if (txn != null) {
+                        systemTxnClose.invoke(txn);
+                        txn = null;
+                    }
+                    txn = systemTxnConstructor.newInstance();
+                    systemTxnSetSecure.invoke(txn, sc, true);
+                    systemTxnApply.invoke(txn);
+                    success = true;
+                } catch (Throwable t2) {
+                    log(Log.ERROR, TAG, "setSecure also failed: " + t2.getMessage());
+                }
+            } else {
+                log(Log.ERROR, TAG, "applySkipScreenshot failed: " + t.getMessage());
+            }
+        } finally {
+            if (txn != null) try {
+                systemTxnClose.invoke(txn);
+            } catch (Throwable ignored) {
             }
         }
-        systemHiddenPackages = Collections.unmodifiableSet(lowerPkgs);
+        if (!success) systemSecureApplied.remove(sc);
     }
 
-    private void clearWindowHideCache() {
-        synchronized (windowCacheLock) {
+    private boolean shouldHideWindow(Object winState) {
+        if (!systemHideEnabled || winState == null) return false;
+
+        if (localCacheVersion != cacheVersion) {
             windowHideCache.clear();
+            systemSecureApplied.clear();
+            taskSecureApplied.clear();
+            localCacheVersion = cacheVersion;
         }
-    }
 
-    private boolean checkWindowForHide(Object winState) {
-        if (!systemHideEnabled) return false;
-        Set<String> hidden = systemHiddenPackages;
-        if (hidden.isEmpty() || winState == null) return false;
-
-        Boolean cached;
-        synchronized (windowCacheLock) {
-            cached = windowHideCache.get(winState);
-        }
+        Boolean cached = windowHideCache.get(winState);
         if (cached != null) return cached;
 
         boolean hide = false;
         try {
-            String pkg = (String) getOwningPackageMethod.invoke(winState);
-            if (pkg != null && hidden.contains(pkg.toLowerCase(Locale.ROOT))) {
+            String pkg = null;
+
+            if (windowStateAttrsField != null && layoutParamsPackageNameField != null) {
+                try {
+                    Object attrs = windowStateAttrsField.get(winState);
+                    if (attrs != null) {
+                        pkg = (String) layoutParamsPackageNameField.get(attrs);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+
+            if (pkg == null && getOwningPackageMethod != null) {
+                pkg = (String) getOwningPackageMethod.invoke(winState);
+            }
+
+            if (pkg != null && systemHiddenPackages.contains(pkg.toLowerCase(Locale.ROOT))) {
                 hide = true;
             } else {
                 Object tag = getWindowTagMethod.invoke(winState);
-                if (tag instanceof CharSequence) {
-                    hide = "FlexibleTaskMenu".contentEquals((CharSequence) tag);
+                if (tag instanceof CharSequence
+                        && "FlexibleTaskMenu".contentEquals((CharSequence) tag)) {
+                    hide = true;
                 }
             }
         } catch (Throwable ignored) {
         }
 
-        synchronized (windowCacheLock) {
-            windowHideCache.put(winState, hide);
-        }
+        windowHideCache.put(winState, hide);
         return hide;
     }
 
     @SuppressLint("PrivateApi")
     private void initAppReflection(ClassLoader cl) throws Exception {
-        if (sAppReflectionReady) return;
+        if (sAppCacheReady) return;
         synchronized (appLock) {
-            if (sAppReflectionReady) return;
+            if (sAppCacheReady) return;
 
             Class<?> vriClass = Class.forName("android.view.ViewRootImpl", false, cl);
-            String[] candidates = {"mSurfaceControl", "mSurface", "mLeash", "mSurfaceControlLocked"};
-            for (String fieldName : candidates) {
+            for (String name : new String[]{
+                    "mSurfaceControl", "mSurface", "mLeash", "mSurfaceControlLocked"}) {
                 try {
-                    Field f = vriClass.getDeclaredField(fieldName);
+                    Field f = vriClass.getDeclaredField(name);
                     f.setAccessible(true);
-                    sAppSurfaceControlField = f;
+                    sSurfaceControlField = f;
+                    log(Log.DEBUG, TAG, "VRI SC field: " + name);
                     break;
                 } catch (NoSuchFieldException ignored) {
                 }
             }
-
-            sAppSurfaceControlClass = Class.forName("android.view.SurfaceControl", false, cl);
-            sAppSurfaceControlIsValid = sAppSurfaceControlClass.getDeclaredMethod("isValid");
-            sAppSurfaceControlIsValid.setAccessible(true);
-
-            Class<?> txnClass = Class.forName("android.view.SurfaceControl$Transaction", false, cl);
-            sAppTxnConstructor = txnClass.getDeclaredConstructor();
-            sAppTxnConstructor.setAccessible(true);
-            sAppTxnApply = txnClass.getDeclaredMethod("apply");
-            sAppTxnApply.setAccessible(true);
-            sAppTxnClose = txnClass.getDeclaredMethod("close");
-            sAppTxnClose.setAccessible(true);
-
-            try {
-                sAppTxnSetSkipScreenshot = txnClass.getDeclaredMethod("setSkipScreenshot", sAppSurfaceControlClass, boolean.class);
-                sAppTxnSetSkipScreenshot.setAccessible(true);
-            } catch (Throwable ignored) {
-                sAppTxnSetSkipScreenshot = null;
-            }
-            try {
-                sAppTxnSetSkipScreenshotLegacy = txnClass.getDeclaredMethod("setSkipScreenshot", boolean.class);
-                sAppTxnSetSkipScreenshotLegacy.setAccessible(true);
-            } catch (Throwable ignored) {
-                sAppTxnSetSkipScreenshotLegacy = null;
-            }
-            try {
-                sAppTxnSetSecure = txnClass.getDeclaredMethod("setSecure", sAppSurfaceControlClass, boolean.class);
-                sAppTxnSetSecure.setAccessible(true);
-            } catch (Throwable ignored) {
-                sAppTxnSetSecure = null;
+            if (sSurfaceControlField == null) {
+                log(Log.WARN, TAG, "No SurfaceControl field found in ViewRootImpl");
             }
 
-            sAppReflectionReady = true;
+            sScClass = Class.forName("android.view.SurfaceControl", false, cl);
+            sScIsValid = sScClass.getDeclaredMethod("isValid");
+            sScIsValid.setAccessible(true);
+
+            Class<?> txnClass = Class.forName(
+                    "android.view.SurfaceControl$Transaction", false, cl);
+            sTxnConstructor = txnClass.getDeclaredConstructor();
+            sTxnConstructor.setAccessible(true);
+            sTxnApply = txnClass.getDeclaredMethod("apply");
+            sTxnApply.setAccessible(true);
+            sTxnClose = txnClass.getDeclaredMethod("close");
+            sTxnClose.setAccessible(true);
+
+            try {
+                sTxnSetSkipScreenshot = txnClass.getDeclaredMethod(
+                        "setSkipScreenshot", sScClass, boolean.class);
+                sTxnSetSkipScreenshot.setAccessible(true);
+            } catch (Throwable ignored) {
+            }
+            try {
+                sTxnSetSkipScreenshotLegacy = txnClass.getDeclaredMethod(
+                        "setSkipScreenshot", boolean.class);
+                sTxnSetSkipScreenshotLegacy.setAccessible(true);
+            } catch (Throwable ignored) {
+            }
+            try {
+                sTxnSetSecure = txnClass.getDeclaredMethod(
+                        "setSecure", sScClass, boolean.class);
+                sTxnSetSecure.setAccessible(true);
+            } catch (Throwable ignored) {
+            }
+
+            sAppCacheReady = true;
         }
     }
 
     @SuppressLint("PrivateApi")
-    private void installWindowManagerHook(ClassLoader cl) throws Exception {
-        Class<?> wmgClass = Class.forName("android.view.WindowManagerGlobal", false, cl);
-        for (Method method : wmgClass.getDeclaredMethods()) {
-            final String name = Objects.requireNonNull(method).getName();
+    private void installWindowManagerHook(PackageReadyParam param) throws Exception {
+        Class<?> wmg = Class.forName(
+                "android.view.WindowManagerGlobal", false, param.getClassLoader());
+        for (Method method : wmg.getDeclaredMethods()) {
+            String name = method.getName();
             if (!"addView".equals(name) && !"updateViewLayout".equals(name)) continue;
-            try {
-                hook(method)
-                        .setPriority(XposedInterface.PRIORITY_DEFAULT)
-                        .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                        .intercept(chain -> {
-                            ProcessConfig config = currentConfig;
-                            if (!needsWindowManagerHook(config)) return chain.proceed();
-                            for (Object arg : chain.getArgs()) {
-                                if (arg instanceof WindowManager.LayoutParams) {
-                                    modifyLayoutParams((WindowManager.LayoutParams) arg, config);
-                                    break;
-                                }
-                            }
-                            return chain.proceed();
-                        });
-            } catch (Throwable t) {
-                log(Log.WARN, TAG, "Failed to hook " + name + ": " + t.getMessage());
-            }
-        }
-    }
-
-    @SuppressLint("WrongConstant")
-    private void modifyLayoutParams(WindowManager.LayoutParams lp, ProcessConfig config) {
-        if (config.features.contains("FLAG_DIM_BEHIND_0")) {
-            lp.flags &= ~WindowManager.LayoutParams.FLAG_DIM_BEHIND;
-            lp.dimAmount = 0f;
-        }
-        if (config.features.contains("show_wallpaper")) {
-            lp.flags |= WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER;
-        }
-        if (config.features.contains("magic_flags")) {
-            int magicFlags = 0x40000 | 0x200 | 0x20 | 0x8 | 0x20000;
-            lp.flags |= magicFlags;
-        }
-        if (config.windowTitle != null) {
-            try {
-                lp.setTitle(config.windowTitle);
-            } catch (Throwable ignored) {
-            }
-        }
-    }
-
-    @SuppressLint("PrivateApi")
-    private void installAntiScreenshotHook(ClassLoader cl) throws Exception {
-        Class<?> vriClass = Class.forName("android.view.ViewRootImpl", false, cl);
-        for (Method method : vriClass.getDeclaredMethods()) {
-            final String name = Objects.requireNonNull(method).getName();
-            if (!"setView".equals(name) && !"relayoutWindow".equals(name) && !"performTraversals".equals(name))
-                continue;
             hook(method)
                     .setPriority(XposedInterface.PRIORITY_DEFAULT)
                     .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
-                        ProcessConfig config = currentConfig;
-                        if (!config.features.contains("enable_skip_screenshot"))
+                        for (Object arg : chain.getArgs()) {
+                            if (arg instanceof WindowManager.LayoutParams) {
+                                modifyLayoutParams((WindowManager.LayoutParams) arg);
+                                break;
+                            }
+                        }
+                        return chain.proceed();
+                    });
+        }
+    }
+
+    @SuppressLint("WrongConstant")
+    private void modifyLayoutParams(WindowManager.LayoutParams lp) {
+        if (enabledFeatures.contains("FLAG_DIM_BEHIND_0")) {
+            lp.flags &= ~WindowManager.LayoutParams.FLAG_DIM_BEHIND;
+            lp.dimAmount = 0f;
+        }
+        if (enabledFeatures.contains("show_wallpaper")) {
+            lp.flags |= WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER;
+        }
+        if (enabledFeatures.contains("magic_flags")) {
+            lp.flags |= FLAG_STEALTH_OVERLAY;
+        }
+        if (windowTitle != null) {
+            try {
+                lp.setTitle(windowTitle);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    @SuppressLint("PrivateApi")
+    private void installAntiScreenshotHook(PackageReadyParam param) throws Exception {
+        Class<?> vriClass = Class.forName(
+                "android.view.ViewRootImpl", false, param.getClassLoader());
+        for (Method m : vriClass.getDeclaredMethods()) {
+            final String name = m.getName();
+            // Only hook setView and relayoutWindow; skip performTraversals (per-frame overhead)
+            if (!"setView".equals(name) && !"relayoutWindow".equals(name)) continue;
+
+            hook(m)
+                    .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        if (!enabledFeatures.contains("enable_skip_screenshot")) {
                             return chain.proceed();
+                        }
+                        Object vri = chain.getThisObject();
                         if ("setView".equals(name)) {
                             chain.proceed();
-                            applySecure(chain.getThisObject());
+                            applySecure(vri);
                             return null;
-                        } else if ("relayoutWindow".equals(name)) {
-                            secureApplied.remove(chain.getThisObject());
+                        } else { // relayoutWindow
+                            secureApplied.remove(vri);
                             Object result = chain.proceed();
-                            applySecure(chain.getThisObject());
+                            applySecure(vri);
                             return result;
-                        } else {
-                            applySecure(chain.getThisObject());
-                            return chain.proceed();
                         }
                     });
         }
     }
 
     private void applySecure(Object vri) {
-        ProcessConfig config = currentConfig;
-        if (!config.features.contains("enable_skip_screenshot")) return;
-        if (!sAppReflectionReady || vri == null || secureApplied.contains(vri)) return;
-
+        if (!sAppCacheReady || secureApplied.contains(vri)) return;
         Object sc = getValidSurface(vri);
         if (sc == null) return;
 
         Object txn = null;
         try {
-            txn = sAppTxnConstructor.newInstance();
+            txn = sTxnConstructor.newInstance();
             boolean applied = false;
-            if (sAppTxnSetSkipScreenshot != null) {
+            if (sTxnSetSkipScreenshot != null) {
                 try {
-                    sAppTxnSetSkipScreenshot.invoke(txn, sc, true);
+                    sTxnSetSkipScreenshot.invoke(txn, sc, true);
                     applied = true;
                 } catch (Throwable ignored) {
                 }
             }
-            if (!applied && sAppTxnSetSkipScreenshotLegacy != null) {
+            if (!applied && sTxnSetSkipScreenshotLegacy != null) {
                 try {
-                    sAppTxnSetSkipScreenshotLegacy.invoke(txn, true);
+                    sTxnSetSkipScreenshotLegacy.invoke(txn, true);
                     applied = true;
                 } catch (Throwable ignored) {
                 }
             }
-            if (!applied && sAppTxnSetSecure != null) {
+            if (!applied && sTxnSetSecure != null) {
                 try {
-                    sAppTxnSetSecure.invoke(txn, sc, true);
+                    sTxnSetSecure.invoke(txn, sc, true);
                     applied = true;
                 } catch (Throwable ignored) {
                 }
             }
             if (applied) {
-                sAppTxnApply.invoke(txn);
+                sTxnApply.invoke(txn);
                 secureApplied.add(vri);
             }
         } catch (Throwable ignored) {
         } finally {
-            if (txn != null) {
-                try {
-                    sAppTxnClose.invoke(txn);
-                } catch (Throwable ignored) {
-                }
+            if (txn != null) try {
+                sTxnClose.invoke(txn);
+            } catch (Throwable ignored) {
             }
         }
     }
 
     private Object getValidSurface(Object vri) {
-        if (sAppSurfaceControlField == null || sAppSurfaceControlClass == null) return null;
+        if (sSurfaceControlField == null || sScClass == null) return null;
         try {
-            Object sc = sAppSurfaceControlField.get(vri);
-            if (sc != null && sAppSurfaceControlClass.isInstance(sc) && Boolean.TRUE.equals(sAppSurfaceControlIsValid.invoke(sc))) {
+            Object sc = sSurfaceControlField.get(vri);
+            if (sc != null && sScClass.isInstance(sc) && Boolean.TRUE.equals(sScIsValid.invoke(sc))) {
                 return sc;
             }
         } catch (Throwable ignored) {
@@ -587,41 +801,37 @@ public class MainXposedModule extends XposedModule {
     }
 
     private void installHideRecentsHook() throws Exception {
-        Class<?> activityClass = Activity.class;
-        Method onCreate = activityClass.getDeclaredMethod("onCreate", Bundle.class);
-        hook(onCreate)
+        hook(Activity.class.getDeclaredMethod("onCreate", Bundle.class))
                 .setPriority(XposedInterface.PRIORITY_DEFAULT)
                 .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
-                    Object result = chain.proceed();
-                    ProcessConfig config = currentConfig;
-                    if (!config.features.contains("hide_recent_card")) return result;
-
-                    Activity activity = (Activity) chain.getThisObject();
+                    chain.proceed();
+                    if (!enabledFeatures.contains("hide_recent_card")) return null;
+                    Activity act = (Activity) chain.getThisObject();
+                    if (!recentsExcluded.add(act)) return null;
                     try {
-                        ActivityManager am = (ActivityManager) activity.getSystemService(Activity.ACTIVITY_SERVICE);
-                        if (am != null) {
-                            for (ActivityManager.AppTask task : am.getAppTasks()) {
-                                if (task.getTaskInfo().taskId == activity.getTaskId()) {
-                                    task.setExcludeFromRecents(true);
-                                    break;
-                                }
+                        ActivityManager am = (ActivityManager)
+                                act.getSystemService(Activity.ACTIVITY_SERVICE);
+                        if (am == null) return null;
+                        int myTaskId = act.getTaskId();
+                        for (ActivityManager.AppTask task : am.getAppTasks()) {
+                            if (task.getTaskInfo().taskId == myTaskId) {
+                                task.setExcludeFromRecents(true);
+                                break;
                             }
                         }
                     } catch (Throwable ignored) {
                     }
-                    return result;
+                    return null;
                 });
     }
 
-    private static final class ProcessConfig {
-        static final ProcessConfig EMPTY = new ProcessConfig(Collections.emptySet(), null);
-        final Set<String> features;
-        final String windowTitle;
-
-        ProcessConfig(Set<String> features, String windowTitle) {
-            this.features = Collections.unmodifiableSet(features);
-            this.windowTitle = windowTitle;
+    private boolean methodExists(Class<?> cls, String name, Class<?>... params) {
+        try {
+            findMethodInHierarchy(cls, name, params);
+            return true;
+        } catch (NoSuchMethodException e) {
+            return false;
         }
     }
 }

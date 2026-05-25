@@ -23,6 +23,9 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
 
     private XposedService service;
     private Spinner spinnerBrand;
+    private SwitchCompat switchSystemHide;
+    private boolean loading = false;
+
     private static final String[] BRAND_VALUES = {
             "",
             "com.oplus.screenrecorder.FloatView",
@@ -32,8 +35,6 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
             "screen_record_menu",
             "SysScreenRecorder"
     };
-    private boolean loading = false;
-    private SwitchCompat switchSystemHide;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,7 +70,6 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
         if (service == null) return;
         loading = true;
 
-        // 品牌选择
         SharedPreferences globalPrefs = service.getRemotePreferences("global");
         String savedTitle = globalPrefs.getString("title", "");
         int pos = 0;
@@ -83,13 +83,10 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
         }
         spinnerBrand.setSelection(pos, false);
 
-        // 系统层隐藏开关：判断 packages 键是否存在
         SharedPreferences sysPrefs = service.getRemotePreferences("system_hide");
         boolean hasPackages = sysPrefs.contains("packages");
-        // 如果 packages 存在但作用域不含 system，修正状态为关闭
         if (hasPackages) {
-            List<String> scope = service.getScope();
-            if (scope == null || !scope.contains("system")) {
+            if (!service.getScope().contains("system")) {
                 hasPackages = false;
             }
         }
@@ -117,11 +114,9 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                 return;
             }
             if (checked) {
-                // 请求添加 system 作用域
                 service.requestScope(Collections.singletonList("system"), new XposedService.OnScopeEventListener() {
                     @Override
                     public void onScopeRequestApproved(@NonNull List<String> approved) {
-                        // 写入 packages 键（首次写入空集合，若已有则保留原值）
                         SharedPreferences prefs = service.getRemotePreferences("system_hide");
                         if (!prefs.contains("packages")) {
                             prefs.edit().putStringSet("packages", new HashSet<>()).apply();
@@ -141,7 +136,6 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                     }
                 });
             } else {
-                // 关闭：移除作用域并删除 packages 键
                 service.removeScope(Collections.singletonList("system"));
                 service.getRemotePreferences("system_hide").edit().remove("packages").apply();
                 App.notifyServiceUpdate();

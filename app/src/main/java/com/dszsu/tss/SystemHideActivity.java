@@ -16,6 +16,7 @@ import android.view.inputmethod.InputMethodManager;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
+import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -32,11 +33,9 @@ import java.util.concurrent.Executors;
 
 import io.github.libxposed.service.XposedService;
 
-public class SystemHideActivity extends AppCompatActivity
-        implements App.ServiceListener {
+public class SystemHideActivity extends AppCompatActivity implements App.ServiceListener {
 
     private static final Set<String> EXCLUDE_PACKAGES = new HashSet<>();
-
     static {
         EXCLUDE_PACKAGES.add("system");
         EXCLUDE_PACKAGES.add("android");
@@ -46,6 +45,7 @@ public class SystemHideActivity extends AppCompatActivity
 
     private final Set<String> hiddenPackages = new HashSet<>();
     private final List<AppInfo> allFilteredApps = new ArrayList<>();
+
     private ActivitySystemHideBinding binding;
     private XposedService service;
     private SystemHideAdapter adapter;
@@ -65,15 +65,28 @@ public class SystemHideActivity extends AppCompatActivity
 
         binding.rvApps.setLayoutManager(new LinearLayoutManager(this));
 
+        DefaultItemAnimator animator = new DefaultItemAnimator();
+        animator.setSupportsChangeAnimations(false);
+        animator.setMoveDuration(250);
+        animator.setAddDuration(180);
+        animator.setRemoveDuration(180);
+        binding.rvApps.setItemAnimator(animator);
+
+        setupSearchView();
+        App.addListener(this);
+    }
+
+    private void setupSearchView() {
         binding.searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
-                return false;
+                hideKeyboard();
+                return true;
             }
 
             @Override
             public boolean onQueryTextChange(String newText) {
-                currentQuery = newText != null ? newText : "";
+                currentQuery = (newText != null) ? newText : "";
                 applyFilter(currentQuery);
                 return true;
             }
@@ -81,13 +94,11 @@ public class SystemHideActivity extends AppCompatActivity
 
         binding.searchView.setOnCloseListener(() -> {
             currentQuery = "";
+            binding.searchView.setQuery("", false);
             applyFilter("");
-            binding.searchView.clearFocus();
             hideKeyboard();
             return false;
         });
-
-        App.addListener(this);
     }
 
     @Override
@@ -130,9 +141,11 @@ public class SystemHideActivity extends AppCompatActivity
     }
 
     private void hideKeyboard() {
-        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-        if (imm != null) {
-            imm.hideSoftInputFromWindow(binding.searchView.getWindowToken(), 0);
+        if (binding.searchView.getWindowToken() != null) {
+            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.hideSoftInputFromWindow(binding.searchView.getWindowToken(), 0);
+            }
         }
     }
 
@@ -140,7 +153,12 @@ public class SystemHideActivity extends AppCompatActivity
         if (service == null) return;
         SharedPreferences prefs = service.getRemotePreferences("system_hide");
         hiddenPackages.clear();
-        hiddenPackages.addAll(prefs.getStringSet("packages", new HashSet<>()));
+        Set<String> raw = prefs.getStringSet("packages", new HashSet<>());
+        for (String p : raw) {
+            if (p != null && !p.isEmpty()) {
+                hiddenPackages.add(p.toLowerCase());
+            }
+        }
     }
 
     private void rebuildAppList() {
@@ -148,16 +166,14 @@ public class SystemHideActivity extends AppCompatActivity
         allFilteredApps.clear();
 
         for (AppInfo app : allApps) {
-            String pkg = app.getPackageName().toLowerCase();
-            if (EXCLUDE_PACKAGES.contains(pkg) || isSubPackageOfExcluded(pkg)) {
-                continue;
-            }
+            String lowerPkg = app.getPackageName().toLowerCase();
+            boolean enabled = hiddenPackages.contains(lowerPkg);
 
-            // 使用 isSystemApp 代替跨进程查询，大幅提升性能
-            if (!showSystemApps && app.isSystemApp()) {
-                continue;
+            if (!enabled) {
+                if (EXCLUDE_PACKAGES.contains(lowerPkg) || isSubPackageOfExcluded(lowerPkg))
+                    continue;
+                if (!showSystemApps && app.isSystemApp()) continue;
             }
-
             allFilteredApps.add(app);
         }
 
@@ -169,38 +185,29 @@ public class SystemHideActivity extends AppCompatActivity
             );
             binding.rvApps.setAdapter(adapter);
         }
-
         applyFilter(currentQuery);
     }
 
     private boolean isSubPackageOfExcluded(String lowerPkg) {
         for (String excluded : EXCLUDE_PACKAGES) {
-            if (lowerPkg.startsWith(excluded + ".")) {
-                return true;
-            }
+            if (lowerPkg.startsWith(excluded + ".")) return true;
         }
         return false;
     }
 
     private void applyFilter(String query) {
         if (adapter == null) return;
+        String lowerQuery = (query != null) ? query.toLowerCase().trim() : "";
 
         List<AppInfo> enabled = new ArrayList<>();
         List<AppInfo> disabled = new ArrayList<>();
-        String lowerQuery = query != null ? query.toLowerCase().trim() : "";
-
         for (AppInfo app : allFilteredApps) {
-            boolean match;
-            if (lowerQuery.isEmpty()) {
-                match = true;
-            } else {
-                match = app.getLabel().toLowerCase().contains(lowerQuery)
-                        || app.getPackageName().toLowerCase().contains(lowerQuery);
+            if (!lowerQuery.isEmpty()
+                    && !app.getLabel().toLowerCase().contains(lowerQuery)
+                    && !app.getPackageName().toLowerCase().contains(lowerQuery)) {
+                continue;
             }
-
-            if (!match) continue;
-
-            if (hiddenPackages.contains(app.getPackageName())) {
+            if (hiddenPackages.contains(app.getPackageName().toLowerCase())) {
                 enabled.add(app);
             } else {
                 disabled.add(app);
@@ -213,25 +220,20 @@ public class SystemHideActivity extends AppCompatActivity
         List<AppInfo> finalList = new ArrayList<>(enabled.size() + disabled.size());
         finalList.addAll(enabled);
         finalList.addAll(disabled);
-
         adapter.submitList(finalList, hiddenPackages);
     }
 
     private void onToggle(String packageName, boolean enabled) {
         if (service == null) return;
-
+        String lowerPkg = packageName.toLowerCase();
         if (enabled) {
-            hiddenPackages.add(packageName);
+            hiddenPackages.add(lowerPkg);
         } else {
-            hiddenPackages.remove(packageName);
+            hiddenPackages.remove(lowerPkg);
         }
-
-        SharedPreferences.Editor editor = service.getRemotePreferences("system_hide").edit();
-        editor.putStringSet("packages", new HashSet<>(hiddenPackages));
-        editor.apply();
-
-        binding.searchView.clearFocus();
-        hideKeyboard();
+        service.getRemotePreferences("system_hide").edit()
+                .putStringSet("packages", new HashSet<>(hiddenPackages))
+                .apply();
         applyFilter(currentQuery);
     }
 
@@ -240,7 +242,6 @@ public class SystemHideActivity extends AppCompatActivity
         super.onDestroy();
         App.removeListener(this);
     }
-
 
     private static class SystemHideAdapter extends RecyclerView.Adapter<SystemHideAdapter.VH> {
 
@@ -257,24 +258,23 @@ public class SystemHideActivity extends AppCompatActivity
             this.packageManager = pm;
             this.defaultIcon = defaultIcon;
             this.listener = listener;
+            setHasStableIds(true);
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return currentList.get(position).getPackageName().hashCode();
         }
 
         void submitList(List<AppInfo> newList, Set<String> newSelected) {
             List<AppInfo> oldList = new ArrayList<>(currentList);
+            Set<String> oldSelected = new HashSet<>(this.selected);
+            DiffUtil.DiffResult diff = DiffUtil.calculateDiff(
+                    new AppDiffCallback(oldList, newList, oldSelected, newSelected), true);
             this.selected = new HashSet<>(newSelected);
-
-            DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new AppDiffCallback(oldList, newList), false);
             currentList.clear();
             currentList.addAll(newList);
             diff.dispatchUpdatesTo(this);
-        }
-
-        @NonNull
-        @Override
-        public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            ItemSystemHideBinding b = ItemSystemHideBinding.inflate(
-                    LayoutInflater.from(parent.getContext()), parent, false);
-            return new VH(b);
         }
 
         @Override
@@ -284,9 +284,9 @@ public class SystemHideActivity extends AppCompatActivity
             holder.b.tvPackage.setText(app.getPackageName());
 
             holder.b.switchEnabled.setOnCheckedChangeListener(null);
-            holder.b.switchEnabled.setChecked(selected.contains(app.getPackageName()));
-            holder.b.switchEnabled.setOnCheckedChangeListener(
-                    (v, checked) -> listener.onToggle(app.getPackageName(), checked));
+            holder.b.switchEnabled.setChecked(selected.contains(app.getPackageName().toLowerCase()));
+            holder.b.switchEnabled.setOnCheckedChangeListener((v, checked) ->
+                    listener.onToggle(app.getPackageName(), checked));
 
             String pkg = app.getPackageName();
             Drawable cached = iconCache.get(pkg);
@@ -307,6 +307,18 @@ public class SystemHideActivity extends AppCompatActivity
             }
         }
 
+        @NonNull
+        @Override
+        public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            ItemSystemHideBinding b = ItemSystemHideBinding.inflate(
+                    LayoutInflater.from(parent.getContext()), parent, false);
+            return new VH(b);
+        }
+
+        interface OnToggleListener {
+            void onToggle(String packageName, boolean enabled);
+        }
+
         @Override
         public int getItemCount() {
             return currentList.size();
@@ -319,13 +331,8 @@ public class SystemHideActivity extends AppCompatActivity
             holder.b.ivIcon.setImageDrawable(null);
         }
 
-        interface OnToggleListener {
-            void onToggle(String packageName, boolean enabled);
-        }
-
         static class VH extends RecyclerView.ViewHolder {
             ItemSystemHideBinding b;
-
             VH(ItemSystemHideBinding b) {
                 super(b.getRoot());
                 this.b = b;
@@ -333,35 +340,38 @@ public class SystemHideActivity extends AppCompatActivity
         }
 
         private static class AppDiffCallback extends DiffUtil.Callback {
-            private final List<AppInfo> oldList;
-            private final List<AppInfo> newList;
+            private final List<AppInfo> oldList, newList;
+            private final Set<String> oldSelected, newSelected;
 
-            AppDiffCallback(List<AppInfo> oldList, List<AppInfo> newList) {
+            AppDiffCallback(List<AppInfo> oldList, List<AppInfo> newList,
+                            Set<String> oldSelected, Set<String> newSelected) {
                 this.oldList = oldList;
                 this.newList = newList;
+                this.oldSelected = oldSelected;
+                this.newSelected = newSelected;
             }
 
             @Override
             public int getOldListSize() {
                 return oldList.size();
             }
-
             @Override
             public int getNewListSize() {
                 return newList.size();
             }
 
             @Override
-            public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
-                return oldList.get(oldItemPosition).getPackageName()
-                        .equals(newList.get(newItemPosition).getPackageName());
+            public boolean areItemsTheSame(int oldPos, int newPos) {
+                return oldList.get(oldPos).getPackageName()
+                        .equals(newList.get(newPos).getPackageName());
             }
 
             @Override
-            public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
-                AppInfo oldItem = oldList.get(oldItemPosition);
-                AppInfo newItem = newList.get(newItemPosition);
-                return oldItem.getLabel().equals(newItem.getLabel());
+            public boolean areContentsTheSame(int oldPos, int newPos) {
+                AppInfo o = oldList.get(oldPos), n = newList.get(newPos);
+                return o.getLabel().equals(n.getLabel())
+                        && oldSelected.contains(o.getPackageName().toLowerCase())
+                        == newSelected.contains(n.getPackageName().toLowerCase());
             }
         }
     }
