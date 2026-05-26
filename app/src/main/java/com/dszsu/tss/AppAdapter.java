@@ -86,10 +86,8 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         int color = defaultTextColor;
 
         if ("system".equals(app.getPackageName())) {
-            // 统一使用字符串资源作为名称
             displayName = holder.itemView.getContext().getString(R.string.system_framework_label);
             if (app.isSystemCritical()) {
-                // 修改这里：将“必须取消作用域”替换为“未启用功能”
                 suffix = holder.itemView.getContext().getString(R.string.feature_disabled_suffix);
                 color = Color.RED;
             } else {

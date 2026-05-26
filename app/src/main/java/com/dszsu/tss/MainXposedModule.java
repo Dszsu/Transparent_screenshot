@@ -720,7 +720,6 @@ public class MainXposedModule extends XposedModule {
                 "android.view.ViewRootImpl", false, param.getClassLoader());
         for (Method m : vriClass.getDeclaredMethods()) {
             final String name = m.getName();
-            // Only hook setView and relayoutWindow; skip performTraversals (per-frame overhead)
             if (!"setView".equals(name) && !"relayoutWindow".equals(name)) continue;
 
             hook(m)

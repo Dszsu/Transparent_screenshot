@@ -70,7 +70,6 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
         if (service == null) return;
         loading = true;
 
-        // 品牌选择
         SharedPreferences globalPrefs = service.getRemotePreferences("global");
         String savedTitle = globalPrefs.getString("title", "");
         int pos = 0;
@@ -84,7 +83,6 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
         }
         spinnerBrand.setSelection(pos, false);
 
-        // 系统层隐藏开关：同时检查 packages 键和作用域
         SharedPreferences sysPrefs = service.getRemotePreferences("system_hide");
         boolean hasPackages = sysPrefs.contains("packages");
         boolean inScope = service.getScope().contains("system");
@@ -112,10 +110,8 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                 return;
             }
             if (checked) {
-                // 开启操作
                 boolean alreadyInScope = service.getScope().contains("system");
                 if (alreadyInScope) {
-                    // 作用域已有 system，直接写入 packages 并提示
                     SharedPreferences prefs = service.getRemotePreferences("system_hide");
                     if (!prefs.contains("packages")) {
                         prefs.edit().putStringSet("packages", new HashSet<>()).apply();
@@ -127,12 +123,10 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                     service.requestScope(Collections.singletonList("system"), new XposedService.OnScopeEventListener() {
                         @Override
                         public void onScopeRequestApproved(@NonNull List<String> approved) {
-                            // 异步回调中只写入数据，不触发 UI 刷新（避免 Animator 线程异常）
                             SharedPreferences prefs = service.getRemotePreferences("system_hide");
                             if (!prefs.contains("packages")) {
                                 prefs.edit().putStringSet("packages", new HashSet<>()).apply();
                             }
-                            // 在主线程显示成功提示
                             runOnUiThread(() -> Toast.makeText(SettingsActivity.this,
                                     R.string.system_hide_enabled, Toast.LENGTH_LONG).show());
                         }
@@ -148,7 +142,6 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                     });
                 }
             } else {
-                // 关闭操作：直接在主线程执行，移除作用域并删除 packages
                 service.removeScope(Collections.singletonList("system"));
                 service.getRemotePreferences("system_hide").edit().remove("packages").apply();
                 Toast.makeText(SettingsActivity.this, R.string.system_hide_disabled, Toast.LENGTH_LONG).show();

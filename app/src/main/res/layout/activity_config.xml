@@ -15,7 +15,6 @@
         android:clipToPadding="false"
         android:padding="12dp">
 
-        <!-- 顶部应用信息栏 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -64,9 +63,7 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 功能卡片组 -->
 
-        <!-- 1. 启用窗口隐藏方案1 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -115,7 +112,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 2. 去除阴影遮罩 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -148,7 +144,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 3. 允许截屏至壁纸层 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -197,7 +192,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 4. 绕过焦点检查 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -246,7 +240,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 5. 隐藏最近任务界面 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -279,7 +272,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 6. 窗口标题 -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
