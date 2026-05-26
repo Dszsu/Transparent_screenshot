@@ -37,6 +37,10 @@
     <string name="must_remove_scope_suffix">（必須取消作用域）</string>
     <string name="not_in_scope_suffix">（不在作用域中）</string>
     <string name="framework_not_connected">框架未連線，無法刷新</string>
+    <string name="system_hide_warning">隱藏小窗邊框/陰影，可能造成卡頓，非必要不開啟。僅Oplus 15/16測試通過，其他請自測。</string>
+    <string name="feature_disabled_suffix">（未啟用功能）</string>
+    <string name="system_app">顯示系統應用</string>
+
     <string-array name="brand_labels">
         <item>無</item>
         <item>OPPO/一加/真我</item>

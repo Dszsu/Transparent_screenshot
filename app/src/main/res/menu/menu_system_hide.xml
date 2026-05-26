@@ -6,6 +6,6 @@
         android:id="@+id/action_show_system"
         android:checkable="true"
         android:checked="false"
-        android:title="显示系统应用"
+        android:title="@string/system_app"
         app:showAsAction="never" />
 </menu>

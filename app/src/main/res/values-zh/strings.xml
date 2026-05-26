@@ -37,6 +37,9 @@
     <string name="must_remove_scope_suffix">（必须取消作用域）</string>
     <string name="not_in_scope_suffix">（不在作用域中）</string>
     <string name="framework_not_connected">框架未连接，无法刷新</string>
+    <string name="system_hide_warning">隐藏小窗边框/阴影，可能造成卡顿，非必要不开启。仅Oplus 15/16测试通过，其他请自测</string>
+    <string name="feature_disabled_suffix">（未启用功能）</string>
+    <string name="system_app">显示系统应用</string>
 
     <string-array name="brand_labels">
         <item>无</item>

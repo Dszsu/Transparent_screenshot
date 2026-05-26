@@ -37,6 +37,9 @@
     <string name="must_remove_scope_suffix"> (Must Remove from Scope)</string>
     <string name="not_in_scope_suffix"> (Not in Scope)</string>
     <string name="framework_not_connected">Framework not connected, cannot refresh</string>
+    <string name="system_hide_warning">Hiding Floating Window borders/shadows,may cause lag. Enable only if necessary. Tested on Oplus 15/16 only. Self-test for other devices.</string>
+    <string name="feature_disabled_suffix"> (Feature disabled)</string>
+    <string name="system_app">Show system apps</string>
 
     <string-array name="brand_labels">
         <item>None</item>

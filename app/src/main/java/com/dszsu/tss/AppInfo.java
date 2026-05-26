@@ -44,7 +44,6 @@ public class AppInfo {
         return isInScope;
     }
 
-    // 移除未使用的 isShowConfig()，统一使用 hasConfig()
     public boolean hasConfig() {
         return hasConfig;
     }

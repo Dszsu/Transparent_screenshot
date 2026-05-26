@@ -28,7 +28,6 @@ import java.util.concurrent.Executors;
 public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
 
     private static final Set<String> VIRTUAL_SYSTEM_PACKAGES = new HashSet<>();
-
     static {
         VIRTUAL_SYSTEM_PACKAGES.add("system");
     }
@@ -90,7 +89,8 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
             // 统一使用字符串资源作为名称
             displayName = holder.itemView.getContext().getString(R.string.system_framework_label);
             if (app.isSystemCritical()) {
-                suffix = holder.itemView.getContext().getString(R.string.must_remove_scope_suffix);
+                // 修改这里：将“必须取消作用域”替换为“未启用功能”
+                suffix = holder.itemView.getContext().getString(R.string.feature_disabled_suffix);
                 color = Color.RED;
             } else {
                 color = Color.BLUE;

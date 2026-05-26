@@ -7,7 +7,6 @@
     android:background="?android:attr/colorBackground"
     android:orientation="vertical">
 
-    <!-- 卡片：品牌选择 -->
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -53,7 +52,6 @@
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
-    <!-- 系统层隐藏总开关 -->
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -66,22 +64,36 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
+            android:orientation="vertical"
             android:padding="16dp">
 
-            <TextView
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/system_hide_master"
-                android:textAppearance="?attr/textAppearanceBody1"
-                android:textColor="?android:attr/textColorPrimary" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <androidx.appcompat.widget.SwitchCompat
-                android:id="@+id/switch_system_hide_master"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/system_hide_master"
+                    android:textAppearance="?attr/textAppearanceBody1"
+                    android:textColor="?android:attr/textColorPrimary" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switch_system_hide_master"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/system_hide_warning"
+                android:textAppearance="?attr/textAppearanceBody2"
+                android:textColor="?android:attr/textColorSecondary" />
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
