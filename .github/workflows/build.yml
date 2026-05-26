@@ -1,11 +1,8 @@
 name: Android Release Build
 
-permissions:
-  contents: read
-
-on:
+于:
   push:
-    branches: [ "main" ]
+    分支: [ "main" ]
   workflow_dispatch:
 
 jobs:
