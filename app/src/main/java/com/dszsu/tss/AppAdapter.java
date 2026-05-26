@@ -20,6 +20,7 @@ import com.dszsu.tss.databinding.ItemAppBinding;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -41,7 +42,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         public boolean areContentsTheSame(@NonNull AppInfo oldItem, @NonNull AppInfo newItem) {
             return oldItem.getLabel().equals(newItem.getLabel())
                     && oldItem.isInScope() == newItem.isInScope()
-                    && oldItem.isShowConfig() == newItem.isShowConfig()
+                    && oldItem.hasConfig() == newItem.hasConfig()
                     && oldItem.isSystemCritical() == newItem.isSystemCritical();
         }
     };
@@ -97,7 +98,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         } else if (app.isSystemCritical()) {
             suffix = holder.itemView.getContext().getString(R.string.must_remove_scope_suffix);
             color = Color.RED;
-        } else if (!app.isInScope() && app.isShowConfig()) {
+        } else if (!app.isInScope() && app.hasConfig()) {
             suffix = holder.itemView.getContext().getString(R.string.not_in_scope_suffix);
             color = Color.GREEN;
         }
@@ -122,7 +123,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
     }
 
     private void loadCriticalIcon(AppInfo app, ViewHolder holder) {
-        String pkg = app.getPackageName().toLowerCase();
+        String pkg = app.getPackageName().toLowerCase(Locale.ROOT);
         String iconSourcePkg = VIRTUAL_SYSTEM_PACKAGES.contains(pkg) ? "android" : pkg;
         Drawable cached = iconCache.get(iconSourcePkg);
         if (cached != null) {
@@ -133,7 +134,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
                 try {
                     Drawable icon = packageManager.getApplicationIcon(iconSourcePkg);
                     iconCache.put(iconSourcePkg, icon);
-                    String currentPkg = holder.binding.tvPackage.getText().toString().toLowerCase();
+                    String currentPkg = holder.binding.tvPackage.getText().toString().toLowerCase(Locale.ROOT);
                     if (iconSourcePkg.equals(currentPkg) || (VIRTUAL_SYSTEM_PACKAGES.contains(currentPkg) && "android".equals(iconSourcePkg))) {
                         mainHandler.post(() -> holder.binding.ivIcon.setImageDrawable(icon));
                     }

@@ -27,6 +27,7 @@ import com.dszsu.tss.databinding.ItemSystemHideBinding;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -149,6 +150,14 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         }
     }
 
+    private static String normalizePackageName(String packageName) {
+        return packageName == null ? "" : packageName.toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizeQuery(String query) {
+        return query == null ? "" : query.toLowerCase(Locale.ROOT).trim();
+    }
+
     private void loadHiddenPackages() {
         if (service == null) return;
         SharedPreferences prefs = service.getRemotePreferences("system_hide");
@@ -156,7 +165,7 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         Set<String> raw = prefs.getStringSet("packages", new HashSet<>());
         for (String p : raw) {
             if (p != null && !p.isEmpty()) {
-                hiddenPackages.add(p.toLowerCase());
+                hiddenPackages.add(normalizePackageName(p));
             }
         }
     }
@@ -166,7 +175,7 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         allFilteredApps.clear();
 
         for (AppInfo app : allApps) {
-            String lowerPkg = app.getPackageName().toLowerCase();
+            String lowerPkg = normalizePackageName(app.getPackageName());
             boolean enabled = hiddenPackages.contains(lowerPkg);
 
             if (!enabled) {
@@ -197,17 +206,17 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
 
     private void applyFilter(String query) {
         if (adapter == null) return;
-        String lowerQuery = (query != null) ? query.toLowerCase().trim() : "";
+        String lowerQuery = normalizeQuery(query);
 
         List<AppInfo> enabled = new ArrayList<>();
         List<AppInfo> disabled = new ArrayList<>();
         for (AppInfo app : allFilteredApps) {
             if (!lowerQuery.isEmpty()
-                    && !app.getLabel().toLowerCase().contains(lowerQuery)
-                    && !app.getPackageName().toLowerCase().contains(lowerQuery)) {
+                    && !app.getLabel().toLowerCase(Locale.ROOT).contains(lowerQuery)
+                    && !normalizePackageName(app.getPackageName()).contains(lowerQuery)) {
                 continue;
             }
-            if (hiddenPackages.contains(app.getPackageName().toLowerCase())) {
+            if (hiddenPackages.contains(normalizePackageName(app.getPackageName()))) {
                 enabled.add(app);
             } else {
                 disabled.add(app);
@@ -225,7 +234,7 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
 
     private void onToggle(String packageName, boolean enabled) {
         if (service == null) return;
-        String lowerPkg = packageName.toLowerCase();
+        String lowerPkg = normalizePackageName(packageName);
         if (enabled) {
             hiddenPackages.add(lowerPkg);
         } else {
@@ -254,6 +263,36 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         private final List<AppInfo> currentList = new ArrayList<>();
         private Set<String> selected = new HashSet<>();
 
+        @Override
+        public void onBindViewHolder(@NonNull VH holder, int position) {
+            AppInfo app = currentList.get(position);
+            holder.b.tvLabel.setText(app.getLabel());
+            holder.b.tvPackage.setText(app.getPackageName());
+
+            holder.b.switchEnabled.setOnCheckedChangeListener(null);
+            holder.b.switchEnabled.setChecked(selected.contains(normalizePackageName(app.getPackageName())));
+            holder.b.switchEnabled.setOnCheckedChangeListener((v, checked) ->
+                    listener.onToggle(app.getPackageName(), checked));
+
+            String pkg = app.getPackageName();
+            Drawable cached = iconCache.get(pkg);
+            if (cached != null) {
+                holder.b.ivIcon.setImageDrawable(cached);
+            } else {
+                holder.b.ivIcon.setImageDrawable(defaultIcon);
+                executor.execute(() -> {
+                    try {
+                        Drawable icon = packageManager.getApplicationIcon(pkg);
+                        iconCache.put(pkg, icon);
+                        if (pkg.equals(holder.b.tvPackage.getText().toString())) {
+                            mainHandler.post(() -> holder.b.ivIcon.setImageDrawable(icon));
+                        }
+                    } catch (PackageManager.NameNotFoundException ignored) {
+                    }
+                });
+            }
+        }
+
         SystemHideAdapter(PackageManager pm, Drawable defaultIcon, OnToggleListener listener) {
             this.packageManager = pm;
             this.defaultIcon = defaultIcon;
@@ -277,34 +316,8 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
             diff.dispatchUpdatesTo(this);
         }
 
-        @Override
-        public void onBindViewHolder(@NonNull VH holder, int position) {
-            AppInfo app = currentList.get(position);
-            holder.b.tvLabel.setText(app.getLabel());
-            holder.b.tvPackage.setText(app.getPackageName());
-
-            holder.b.switchEnabled.setOnCheckedChangeListener(null);
-            holder.b.switchEnabled.setChecked(selected.contains(app.getPackageName().toLowerCase()));
-            holder.b.switchEnabled.setOnCheckedChangeListener((v, checked) ->
-                    listener.onToggle(app.getPackageName(), checked));
-
-            String pkg = app.getPackageName();
-            Drawable cached = iconCache.get(pkg);
-            if (cached != null) {
-                holder.b.ivIcon.setImageDrawable(cached);
-            } else {
-                holder.b.ivIcon.setImageDrawable(defaultIcon);
-                executor.execute(() -> {
-                    try {
-                        Drawable icon = packageManager.getApplicationIcon(pkg);
-                        iconCache.put(pkg, icon);
-                        if (pkg.equals(holder.b.tvPackage.getText().toString())) {
-                            mainHandler.post(() -> holder.b.ivIcon.setImageDrawable(icon));
-                        }
-                    } catch (PackageManager.NameNotFoundException ignored) {
-                    }
-                });
-            }
+        interface OnToggleListener {
+            void onToggle(String packageName, boolean enabled);
         }
 
         @NonNull
@@ -313,10 +326,6 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
             ItemSystemHideBinding b = ItemSystemHideBinding.inflate(
                     LayoutInflater.from(parent.getContext()), parent, false);
             return new VH(b);
-        }
-
-        interface OnToggleListener {
-            void onToggle(String packageName, boolean enabled);
         }
 
         @Override
@@ -370,8 +379,8 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
             public boolean areContentsTheSame(int oldPos, int newPos) {
                 AppInfo o = oldList.get(oldPos), n = newList.get(newPos);
                 return o.getLabel().equals(n.getLabel())
-                        && oldSelected.contains(o.getPackageName().toLowerCase())
-                        == newSelected.contains(n.getPackageName().toLowerCase());
+                        && oldSelected.contains(normalizePackageName(o.getPackageName()))
+                        == newSelected.contains(normalizePackageName(n.getPackageName()));
             }
         }
     }

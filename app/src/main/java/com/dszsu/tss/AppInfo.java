@@ -1,8 +1,12 @@
 package com.dszsu.tss;
 
+import java.util.Locale;
+
 public class AppInfo {
     private final String label;
+    private final String normalizedLabel;
     private final String packageName;
+    private final String normalizedPackageName;
     private final boolean isInScope;
     private final boolean isSystemApp;
     private boolean hasConfig;
@@ -11,7 +15,9 @@ public class AppInfo {
     public AppInfo(String label, String packageName, boolean isInScope, boolean hasConfig,
                    boolean isSystemCritical, boolean isSystemApp) {
         this.label = label;
+        this.normalizedLabel = label == null ? "" : label.toLowerCase(Locale.ROOT);
         this.packageName = packageName;
+        this.normalizedPackageName = packageName == null ? "" : packageName.toLowerCase(Locale.ROOT);
         this.isInScope = isInScope;
         this.hasConfig = hasConfig;
         this.isSystemCritical = isSystemCritical;
@@ -26,11 +32,20 @@ public class AppInfo {
         return packageName;
     }
 
+    public String getNormalizedLabel() {
+        return normalizedLabel;
+    }
+
+    public String getNormalizedPackageName() {
+        return normalizedPackageName;
+    }
+
     public boolean isInScope() {
         return isInScope;
     }
 
-    public boolean isShowConfig() {
+    // 移除未使用的 isShowConfig()，统一使用 hasConfig()
+    public boolean hasConfig() {
         return hasConfig;
     }
 

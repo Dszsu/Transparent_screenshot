@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,6 +42,18 @@ public class AppListRepository {
         return instance;
     }
 
+    private static String appInfoPackageName(String packageName) {
+        return packageName == null ? "" : packageName.toLowerCase(Locale.ROOT);
+    }
+
+    public List<AppInfo> getAllApps() {
+        return new ArrayList<>(allApps);
+    }
+
+    public List<AppInfo> filterApps(String query) {
+        return filterApps(allApps, query);
+    }
+
     public void refreshData(XposedService service, PackageManager pm, OnDataRefreshListener listener) {
         if (isLoading) return;
         isLoading = true;
@@ -49,14 +62,14 @@ public class AppListRepository {
             try {
                 List<String> rawScope = service != null ? service.getScope() : null;
                 Set<String> scope = new HashSet<>();
-                if (rawScope != null) for (String s : rawScope) scope.add(s.toLowerCase());
+                if (rawScope != null) for (String s : rawScope) scope.add(appInfoPackageName(s));
 
                 List<ApplicationInfo> installed = pm.getInstalledApplications(PackageManager.GET_META_DATA);
                 List<AppInfo> apps = new ArrayList<>(installed.size());
                 Set<String> seen = new HashSet<>();
                 for (ApplicationInfo app : installed) {
                     String pkg = app.packageName;
-                    String lower = pkg.toLowerCase();
+                    String lower = appInfoPackageName(pkg);
                     seen.add(lower);
                     boolean inScope = scope.contains(lower);
                     boolean critical = isSystemCritical(lower);
@@ -68,22 +81,22 @@ public class AppListRepository {
                     apps.add(new AppInfo("", "system", true, false, false, false));
                 }
 
-                apps.sort(Comparator.comparing(a -> a.getLabel().toLowerCase()));
+                apps.sort(Comparator.comparing(a -> a.getLabel().toLowerCase(Locale.ROOT)));
                 allApps = apps;
 
                 Set<String> configured = new HashSet<>();
                 if (service != null) {
                     for (AppInfo a : apps) {
                         try {
-                            SharedPreferences p = service.getRemotePreferences(a.getPackageName().toLowerCase());
+                            SharedPreferences p = service.getRemotePreferences(a.getNormalizedPackageName());
                             if (!p.getAll().isEmpty())
-                                configured.add(a.getPackageName().toLowerCase());
+                                configured.add(a.getNormalizedPackageName());
                         } catch (Throwable ignored) {
                         }
                     }
                 }
                 for (AppInfo a : apps) {
-                    if (configured.contains(a.getPackageName().toLowerCase())) a.setHasConfig(true);
+                    if (configured.contains(a.getNormalizedPackageName())) a.setHasConfig(true);
                 }
 
                 List<AppInfo> filtered = filterApps(apps, "");
@@ -102,20 +115,12 @@ public class AppListRepository {
         });
     }
 
-    public List<AppInfo> getAllApps() {
-        return new ArrayList<>(allApps);
-    }
-
-    public List<AppInfo> filterApps(String query) {
-        return filterApps(allApps, query);
-    }
-
     private List<AppInfo> filterApps(List<AppInfo> source, String search) {
         List<AppInfo> result = new ArrayList<>();
-        String lower = search.toLowerCase().trim();
+        String lower = search.toLowerCase(Locale.ROOT).trim();
         for (AppInfo a : source) {
-            if (!a.isInScope() && !a.isShowConfig()) continue;
-            if (lower.isEmpty() || a.getLabel().toLowerCase().contains(lower) || a.getPackageName().toLowerCase().contains(lower))
+            if (!a.isInScope() && !a.hasConfig()) continue;
+            if (lower.isEmpty() || a.getNormalizedLabel().contains(lower) || a.getNormalizedPackageName().contains(lower))
                 result.add(a);
         }
         return result;
