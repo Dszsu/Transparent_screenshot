@@ -1,6 +1,8 @@
 package com.dszsu.tss;
 
+import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Looper;
@@ -18,6 +20,7 @@ import com.dszsu.tss.databinding.ItemAppBinding;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -25,24 +28,23 @@ import java.util.concurrent.Executors;
 public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
 
     private static final Set<String> VIRTUAL_SYSTEM_PACKAGES = new HashSet<>();
+    static {
+        VIRTUAL_SYSTEM_PACKAGES.add("system");
+    }
+
     private static final DiffUtil.ItemCallback<AppInfo> DIFF_CALLBACK = new DiffUtil.ItemCallback<>() {
         @Override
         public boolean areItemsTheSame(@NonNull AppInfo oldItem, @NonNull AppInfo newItem) {
             return oldItem.getPackageName().equals(newItem.getPackageName());
         }
-
         @Override
         public boolean areContentsTheSame(@NonNull AppInfo oldItem, @NonNull AppInfo newItem) {
             return oldItem.getLabel().equals(newItem.getLabel())
                     && oldItem.isInScope() == newItem.isInScope()
-                    && oldItem.isShowConfig() == newItem.isShowConfig()
+                    && oldItem.hasConfig() == newItem.hasConfig()
                     && oldItem.isSystemCritical() == newItem.isSystemCritical();
         }
     };
-
-    static {
-        VIRTUAL_SYSTEM_PACKAGES.add("system");
-    }
 
     private final AsyncListDiffer<AppInfo> differ = new AsyncListDiffer<>(this, DIFF_CALLBACK);
     private final OnItemClickListener listener;
@@ -69,31 +71,46 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         return new ViewHolder(binding);
     }
 
+    @SuppressLint("SetTextI18n")
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         AppInfo app = differ.getCurrentList().get(position);
         holder.binding.tvPackage.setText(app.getPackageName());
 
-        // 获取主题默认文字颜色
         TypedValue typedValue = new TypedValue();
         holder.itemView.getContext().getTheme().resolveAttribute(android.R.attr.textColorPrimary, typedValue, true);
         int defaultTextColor = typedValue.data;
 
         String displayName = app.getLabel();
+        String suffix = null;
+        int color = defaultTextColor;
 
-        if (app.isSystemCritical()) {
-            displayName = app.getLabel() + "（必须取消作用域）";
-            holder.binding.tvLabel.setText(displayName);
-            holder.binding.tvLabel.setTextColor(android.graphics.Color.RED);
-            loadCriticalIcon(app, holder);
-        } else if (!app.isInScope() && app.isShowConfig()) {
-            displayName = app.getLabel() + "（不在作用域中）";
-            holder.binding.tvLabel.setText(displayName);
-            holder.binding.tvLabel.setTextColor(android.graphics.Color.GREEN);
-            loadNormalIcon(app, holder);
+        if ("system".equals(app.getPackageName())) {
+            displayName = holder.itemView.getContext().getString(R.string.system_framework_label);
+            if (app.isSystemCritical()) {
+                suffix = holder.itemView.getContext().getString(R.string.feature_disabled_suffix);
+                color = Color.RED;
+            } else {
+                color = Color.BLUE;
+            }
+        } else if (app.isSystemCritical()) {
+            suffix = holder.itemView.getContext().getString(R.string.must_remove_scope_suffix);
+            color = Color.RED;
+        } else if (!app.isInScope() && app.hasConfig()) {
+            suffix = holder.itemView.getContext().getString(R.string.not_in_scope_suffix);
+            color = Color.GREEN;
+        }
+
+        if (suffix != null) {
+            holder.binding.tvLabel.setText(displayName + suffix);
         } else {
             holder.binding.tvLabel.setText(displayName);
-            holder.binding.tvLabel.setTextColor(defaultTextColor);
+        }
+        holder.binding.tvLabel.setTextColor(color);
+
+        if (app.isSystemCritical()) {
+            loadCriticalIcon(app, holder);
+        } else {
             loadNormalIcon(app, holder);
         }
 
@@ -104,7 +121,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
     }
 
     private void loadCriticalIcon(AppInfo app, ViewHolder holder) {
-        String pkg = app.getPackageName().toLowerCase();
+        String pkg = app.getPackageName().toLowerCase(Locale.ROOT);
         String iconSourcePkg = VIRTUAL_SYSTEM_PACKAGES.contains(pkg) ? "android" : pkg;
         Drawable cached = iconCache.get(iconSourcePkg);
         if (cached != null) {
@@ -115,11 +132,11 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
                 try {
                     Drawable icon = packageManager.getApplicationIcon(iconSourcePkg);
                     iconCache.put(iconSourcePkg, icon);
-                    String currentPkg = holder.binding.tvPackage.getText().toString().toLowerCase();
+                    String currentPkg = holder.binding.tvPackage.getText().toString().toLowerCase(Locale.ROOT);
                     if (iconSourcePkg.equals(currentPkg) || (VIRTUAL_SYSTEM_PACKAGES.contains(currentPkg) && "android".equals(iconSourcePkg))) {
                         mainHandler.post(() -> holder.binding.ivIcon.setImageDrawable(icon));
                     }
-                } catch (PackageManager.NameNotFoundException ignore) {
+                } catch (PackageManager.NameNotFoundException ignored) {
                 }
             });
         }
@@ -139,7 +156,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
                     if (pkg.equals(holder.binding.tvPackage.getText().toString())) {
                         mainHandler.post(() -> holder.binding.ivIcon.setImageDrawable(icon));
                     }
-                } catch (PackageManager.NameNotFoundException ignore) {
+                } catch (PackageManager.NameNotFoundException ignored) {
                 }
             });
         }

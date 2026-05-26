@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,17 +20,14 @@ import io.github.libxposed.service.XposedService;
 
 public class AppListRepository {
 
-    // 系统关键进程
     private static final Set<String> SYSTEM_CRITICAL = new HashSet<>();
-    private static volatile AppListRepository instance;
-
     static {
         SYSTEM_CRITICAL.add("android");
-        SYSTEM_CRITICAL.add("system");
         SYSTEM_CRITICAL.add("com.android.systemui");
         SYSTEM_CRITICAL.add("oplus");
     }
 
+    private static volatile AppListRepository instance;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private volatile List<AppInfo> allApps = Collections.emptyList();
@@ -44,80 +42,63 @@ public class AppListRepository {
         return instance;
     }
 
+    private static String appInfoPackageName(String packageName) {
+        return packageName == null ? "" : packageName.toLowerCase(Locale.ROOT);
+    }
+
+    public List<AppInfo> getAllApps() {
+        return new ArrayList<>(allApps);
+    }
+
+    public List<AppInfo> filterApps(String query) {
+        return filterApps(allApps, query);
+    }
+
     public void refreshData(XposedService service, PackageManager pm, OnDataRefreshListener listener) {
         if (isLoading) return;
         isLoading = true;
         notifyLoading(listener, true);
-
         executor.execute(() -> {
             try {
-                // 作用域
                 List<String> rawScope = service != null ? service.getScope() : null;
                 Set<String> scope = new HashSet<>();
-                if (rawScope != null) for (String s : rawScope) scope.add(s.toLowerCase());
+                if (rawScope != null) for (String s : rawScope) scope.add(appInfoPackageName(s));
 
-                // 全量应用
                 List<ApplicationInfo> installed = pm.getInstalledApplications(PackageManager.GET_META_DATA);
                 List<AppInfo> apps = new ArrayList<>(installed.size());
-                Set<String> seenPackages = new HashSet<>();
+                Set<String> seen = new HashSet<>();
                 for (ApplicationInfo app : installed) {
                     String pkg = app.packageName;
-                    String lowerPkg = pkg.toLowerCase();
-                    seenPackages.add(lowerPkg);
-                    boolean inScope = scope.contains(lowerPkg);
-                    boolean critical = isSystemCritical(lowerPkg);
-                    apps.add(new AppInfo(
-                            app.loadLabel(pm).toString(),
-                            pkg,
-                            inScope,
-                            false,
-                            critical
-                    ));
+                    String lower = appInfoPackageName(pkg);
+                    seen.add(lower);
+                    boolean inScope = scope.contains(lower);
+                    boolean critical = isSystemCritical(lower);
+                    boolean isSys = (app.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+                    apps.add(new AppInfo(app.loadLabel(pm).toString(), pkg, inScope, false, critical, isSys));
                 }
 
-                // 添加作用域中未出现的系统
-                for (String scopePkg : scope) {
-                    String lower = scopePkg.toLowerCase();
-                    if (!seenPackages.contains(lower) && isSystemCritical(lower)) {
-                        if ("system".equals(lower)) {
-                            String label = "系统框架";
-                            try {
-                                ApplicationInfo androidApp = pm.getApplicationInfo("android", 0);
-                                label = androidApp.loadLabel(pm).toString();
-                            } catch (PackageManager.NameNotFoundException ignored) {
-                            }
-                            apps.add(new AppInfo(label, lower, true, false, true));
-                        } else {
-                            apps.add(new AppInfo(lower, lower, true, false, true));
-                        }
-                    }
+                if (scope.contains("system") && !seen.contains("system")) {
+                    apps.add(new AppInfo("", "system", true, false, false, false));
                 }
 
-                apps.sort(Comparator.comparing(a -> a.getLabel().toLowerCase()));
+                apps.sort(Comparator.comparing(a -> a.getLabel().toLowerCase(Locale.ROOT)));
                 allApps = apps;
 
-                // 批量查询已配置状态
                 Set<String> configured = new HashSet<>();
                 if (service != null) {
-                    for (AppInfo info : apps) {
+                    for (AppInfo a : apps) {
                         try {
-                            SharedPreferences prefs = service.getRemotePreferences(info.getPackageName().toLowerCase());
-                            if (!prefs.getAll().isEmpty()) {
-                                configured.add(info.getPackageName().toLowerCase());
-                            }
+                            SharedPreferences p = service.getRemotePreferences(a.getNormalizedPackageName());
+                            if (!p.getAll().isEmpty())
+                                configured.add(a.getNormalizedPackageName());
                         } catch (Throwable ignored) {
                         }
                     }
                 }
-
-                // 更新标记
-                for (AppInfo info : apps) {
-                    if (configured.contains(info.getPackageName().toLowerCase())) {
-                        info.setHasConfig(true);
-                    }
+                for (AppInfo a : apps) {
+                    if (configured.contains(a.getNormalizedPackageName())) a.setHasConfig(true);
                 }
 
-                // 过滤（作用域内 或 已配置）
                 List<AppInfo> filtered = filterApps(apps, "");
                 mainHandler.post(() -> {
                     isLoading = false;
@@ -134,39 +115,29 @@ public class AppListRepository {
         });
     }
 
-    public List<AppInfo> filterApps(String searchQuery) {
-        return filterApps(allApps, searchQuery);
-    }
-
-    private List<AppInfo> filterApps(List<AppInfo> apps, String search) {
+    private List<AppInfo> filterApps(List<AppInfo> source, String search) {
         List<AppInfo> result = new ArrayList<>();
-        String lowerSearch = search.toLowerCase().trim();
-        for (AppInfo info : apps) {
-            if (!info.isInScope() && !info.isShowConfig()) continue;
-            if (lowerSearch.isEmpty() ||
-                    info.getLabel().toLowerCase().contains(lowerSearch) ||
-                    info.getPackageName().toLowerCase().contains(lowerSearch)) {
-                result.add(info);
-            }
+        String lower = search.toLowerCase(Locale.ROOT).trim();
+        for (AppInfo a : source) {
+            if (!a.isInScope() && !a.hasConfig()) continue;
+            if (lower.isEmpty() || a.getNormalizedLabel().contains(lower) || a.getNormalizedPackageName().contains(lower))
+                result.add(a);
         }
         return result;
     }
 
-    private boolean isSystemCritical(String lowerPkg) {
-        if (SYSTEM_CRITICAL.contains(lowerPkg)) return true;
-        for (String critical : SYSTEM_CRITICAL) {
-            if (lowerPkg.startsWith(critical + ".")) return true;
-        }
+    private boolean isSystemCritical(String lower) {
+        if (SYSTEM_CRITICAL.contains(lower)) return true;
+        for (String c : SYSTEM_CRITICAL) if (lower.startsWith(c + ".")) return true;
         return false;
     }
 
-    private void notifyLoading(OnDataRefreshListener listener, boolean loading) {
-        if (listener != null) mainHandler.post(() -> listener.onLoadingStateChanged(loading));
+    private void notifyLoading(OnDataRefreshListener l, boolean loading) {
+        if (l != null) mainHandler.post(() -> l.onLoadingStateChanged(loading));
     }
 
     public interface OnDataRefreshListener {
         void onRefreshComplete(List<AppInfo> filteredList);
-
         void onLoadingStateChanged(boolean isLoading);
     }
 }

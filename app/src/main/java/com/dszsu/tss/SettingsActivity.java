@@ -7,19 +7,27 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
+import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+
 import io.github.libxposed.service.XposedService;
 
 public class SettingsActivity extends AppCompatActivity implements App.ServiceListener {
 
     private XposedService service;
     private Spinner spinnerBrand;
+    private SwitchCompat switchSystemHide;
     private boolean loading = false;
 
-    // 品牌值（空字符串对应未选择）
     private static final String[] BRAND_VALUES = {
-            "",   // 未选择
+            "",
             "com.oplus.screenrecorder.FloatView",
             "com.miui.screenrecorder",
             "com.samsung.android.app.screenrecorder",
@@ -34,6 +42,7 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
         setContentView(R.layout.activity_settings);
 
         spinnerBrand = findViewById(R.id.spinner_brand);
+        switchSystemHide = findViewById(R.id.switch_system_hide_master);
 
         String[] brandLabels = getResources().getStringArray(R.array.brand_labels);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
@@ -60,10 +69,10 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
     private void loadConfig() {
         if (service == null) return;
         loading = true;
-        SharedPreferences globalPrefs = service.getRemotePreferences("global");
 
+        SharedPreferences globalPrefs = service.getRemotePreferences("global");
         String savedTitle = globalPrefs.getString("title", "");
-        int pos = 0; // 默认为“未选择”
+        int pos = 0;
         if (!savedTitle.isEmpty()) {
             for (int i = 1; i < BRAND_VALUES.length; i++) {
                 if (BRAND_VALUES[i].equals(savedTitle)) {
@@ -73,6 +82,12 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
             }
         }
         spinnerBrand.setSelection(pos, false);
+
+        SharedPreferences sysPrefs = service.getRemotePreferences("system_hide");
+        boolean hasPackages = sysPrefs.contains("packages");
+        boolean inScope = service.getScope().contains("system");
+        switchSystemHide.setChecked(hasPackages && inScope);
+
         loading = false;
     }
 
@@ -85,6 +100,51 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+
+        switchSystemHide.setOnCheckedChangeListener((v, checked) -> {
+            if (loading) return;
+            if (service == null) {
+                switchSystemHide.setChecked(!checked);
+                return;
+            }
+            if (checked) {
+                boolean alreadyInScope = service.getScope().contains("system");
+                if (alreadyInScope) {
+                    SharedPreferences prefs = service.getRemotePreferences("system_hide");
+                    if (!prefs.contains("packages")) {
+                        prefs.edit().putStringSet("packages", new HashSet<>()).apply();
+                    }
+                    Toast.makeText(SettingsActivity.this,
+                            R.string.system_hide_enabled, Toast.LENGTH_LONG).show();
+                } else {
+                    // 请求作用域
+                    service.requestScope(Collections.singletonList("system"), new XposedService.OnScopeEventListener() {
+                        @Override
+                        public void onScopeRequestApproved(@NonNull List<String> approved) {
+                            SharedPreferences prefs = service.getRemotePreferences("system_hide");
+                            if (!prefs.contains("packages")) {
+                                prefs.edit().putStringSet("packages", new HashSet<>()).apply();
+                            }
+                            runOnUiThread(() -> Toast.makeText(SettingsActivity.this,
+                                    R.string.system_hide_enabled, Toast.LENGTH_LONG).show());
+                        }
+
+                        @Override
+                        public void onScopeRequestFailed(@NonNull String message) {
+                            runOnUiThread(() -> {
+                                switchSystemHide.setChecked(false);
+                                Toast.makeText(SettingsActivity.this,
+                                        getString(R.string.scope_request_failed, message), Toast.LENGTH_LONG).show();
+                            });
+                        }
+                    });
+                }
+            } else {
+                service.removeScope(Collections.singletonList("system"));
+                service.getRemotePreferences("system_hide").edit().remove("packages").apply();
+                Toast.makeText(SettingsActivity.this, R.string.system_hide_disabled, Toast.LENGTH_LONG).show();
             }
         });
     }

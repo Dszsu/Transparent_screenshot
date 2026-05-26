@@ -20,6 +20,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 
+import java.util.Locale;
+
 import io.github.libxposed.service.XposedService;
 
 public class ConfigActivity extends AppCompatActivity implements App.ServiceListener {
@@ -32,6 +34,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
     private View layoutTitlePicker;
     private static final String KEY_GLOBAL_TITLE = "title";
     private boolean loading = false;
+    private String prefsGroup;
     private SwitchCompat switchDisableSkipScreenshot, switchDimBehind, switchShowWallpaper,
             switchMagicFlags, switchHideRecentCard, switchWindowTitle;
     private TextView textGlobalHint;
@@ -46,6 +49,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
             finish();
             return;
         }
+        prefsGroup = packageName.toLowerCase(Locale.ROOT);
 
         bindViews();
         setTopBarInfo();
@@ -100,7 +104,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
     private void loadConfig() {
         if (service == null) return;
         loading = true;
-        SharedPreferences prefs = service.getRemotePreferences(packageName.toLowerCase());
+        SharedPreferences prefs = service.getRemotePreferences(prefsGroup);
         switchDisableSkipScreenshot.setChecked(prefs.contains("enable_skip_screenshot"));
         switchDimBehind.setChecked(prefs.contains("FLAG_DIM_BEHIND_0"));
         switchShowWallpaper.setChecked(prefs.contains("show_wallpaper"));
@@ -227,7 +231,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
 
     private void saveWindowTitle(String value) {
         if (service == null) return;
-        SharedPreferences.Editor editor = service.getRemotePreferences(packageName.toLowerCase()).edit();
+        SharedPreferences.Editor editor = service.getRemotePreferences(prefsGroup).edit();
         if (value == null) {
             editor.remove("window_title");
         } else {
@@ -238,7 +242,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
 
     private void saveToggle(String key, boolean enable) {
         if (service == null) return;
-        SharedPreferences.Editor editor = service.getRemotePreferences(packageName.toLowerCase()).edit();
+        SharedPreferences.Editor editor = service.getRemotePreferences(prefsGroup).edit();
         if (enable) {
             editor.putBoolean(key, true);
         } else {

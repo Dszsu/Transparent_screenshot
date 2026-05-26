@@ -17,8 +17,6 @@
         app:contentInsetStartWithNavigation="0dp"
         app:title=""
         tools:ignore="ExtraText">
-        android:theme="@style/ThemeOverlay.MaterialComponents.Toolbar.Popup"
-        app:popupTheme="@style/ThemeOverlay.MaterialComponents" />
 
         <androidx.appcompat.widget.SearchView
             android:id="@+id/searchView"
@@ -61,17 +59,6 @@
                 android:textSize="16sp"
                 android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/warningHint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="24dp"
-                android:gravity="center"
-                android:text="@string/android_system_com_android_systemui"
-                android:textColor="?android:attr/colorError"
-                android:textSize="14sp"
-                android:visibility="gone" />
         </LinearLayout>
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 </LinearLayout>

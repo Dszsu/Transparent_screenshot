@@ -1,14 +1,17 @@
-# 透明截图 (Transparent Screenshot)
+<!-- markdownlint-disable -->
+<div align="center">
 
-一个基于 LSPosed 框架的 Xposed 模块，核心功能是将应用窗口的标题伪装成系统录屏组件，从而绕过系统录屏检测，同时提供多种窗口属性修改选项。
+# 🖼️ 透明截图 (Transparent Screenshot)
 
 An Xposed module based on the LSPosed framework. Its core function is to disguise the window title of an app as a system screen recording component, thereby bypassing system screen recording detection, while also providing various window attribute modification options.
 
 ---
 
-## 灵感来源
+*基于 LSPosed 框架的 Xposed 模块，为应用提供全面的截图、录屏及屏幕投射防护。*
 
-本模块的核心功能实现受到了以下优秀项目的启发：
+[![Android](https://img.shields.io/badge/Android-10%2B-brightgreen)]()
+[![API](https://img.shields.io/badge/Xposed%20API-101-blue)]()
+[![License](https://img.shields.io/badge/License-MIT-yellow)]()
 
 The core functionality of this module is inspired by the following excellent projects:
 
