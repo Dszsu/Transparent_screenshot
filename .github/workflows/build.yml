@@ -1,8 +1,8 @@
 name: Android Release Build
 
-于:
+on:
   push:
-    分支: [ "main" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
