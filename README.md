@@ -23,7 +23,7 @@
 |-------------|------------------|
 | **启用默认窗口隐藏方案** <br> Enable default window hiding | 通过 `setSkipScreenshot` 标志阻止系统截图和录屏 <br> Prevents system screenshots and recording via `setSkipScreenshot` flag |
 | **去除阴影遮罩** <br> Remove shadow mask | 移除窗口的阴影效果 <br> Removes window shadow effects |
-| **绕过焦点检查** <br> Bypass focus check | 设置 MagicFlags 让悬浮窗伪装成系统录屏小窗，绕过录屏检测 (⚠️ 注意：会导致无法唤出输入法) <br> Disguises floating windows as system recorder mini-windows (⚠️ Note: keyboard will not appear) |
+| **绕过焦点检查** <br> Bypass focus check | 设置一系列标识让悬浮窗不获取焦点，绕过焦点检测 (⚠️ 注意：会导致无法唤出输入法) <br> Set a series of flags to prevent the floating window from gaining focus, bypassing focus detection (⚠️ Note: keyboard will not appear) |
 | **隐藏最近任务界面** <br> Hide recent tasks | 从最近任务列表中移除应用卡片 <br> Removes app card from recent tasks list |
 | **修改窗口标题为** <br> Modify window title to | 将窗口标题伪装为系统录屏组件，支持全局品牌选择或自定义标题 <br> Disguises window title as system recorder component; supports global brand selection or custom title |
 | **允许截屏至壁纸层** <br> Allow screenshot to wallpaper layer | 窗口完全透明时显示壁纸而非黑色（仅部分应用生效） <br> Shows wallpaper instead of black when window is fully transparent (some apps only) |
