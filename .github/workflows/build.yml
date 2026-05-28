@@ -1,11 +1,7 @@
 name: Android Release Build
 
-permissions:
-  contents: read
-
 on:
   push:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
