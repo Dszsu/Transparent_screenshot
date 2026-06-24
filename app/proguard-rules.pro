@@ -1,12 +1,12 @@
 
 -optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
 -optimizationpasses 5
--dontpreverify
 -repackageclasses
 
 
 
 -keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*
+
 
 
 -keep class com.dszsu.tss.MainXposedModule {
@@ -15,21 +15,8 @@
 }
 
 
--keep class com.dszsu.tss.App {
-    public <init>();
-    *;
-}
-
-
 -keep class com.dszsu.tss.MainActivity { *; }
--keep class com.dszsu.tss.ConfigActivity { *; }
 
-
--keep class com.dszsu.tss.AppAdapter { *; }
--keep class com.dszsu.tss.AppAdapter$ViewHolder { *; }
-
-
--keep class com.dszsu.tss.AppInfo { *; }
 
 
 -keep class * implements androidx.viewbinding.ViewBinding {

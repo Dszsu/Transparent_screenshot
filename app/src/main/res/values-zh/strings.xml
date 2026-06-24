@@ -8,7 +8,7 @@
     <string name="skipscreenshot">启用默认窗口隐藏方案</string>
     <string name="appicon">应用图标</string>
     <string name="dim0">去除阴影遮罩</string>
-    <string name="magicflags">绕过焦点检查</string>
+    <string name="magicflags">窗口不接收触摸与焦点</string>
     <string name="card">隐藏最近任务界面</string>
     <string name="title">修改窗口标题为</string>
     <string name="user_title">输入自定义标题</string>
@@ -19,7 +19,9 @@
     <string name="app_icon">应用图标</string>
     <string name="desc_skip_screenshot">设置 skipScreenshot 标志让系统跳过合成</string>
     <string name="desc_window_title">特定标题会让系统跳过合成，效果类似skipScreenshot</string>
-    <string name="desc_magic_flags">会导致该应用无法唤出输入法</string>
+    <string name="desc_magic_flags">会导致窗口无法点击</string>
+    <string name="nofocus_only">绕过焦点检查</string>
+    <string name="desc_nofocus_only">会导致输入法不弹出</string>
     <string name="gl_title">选择默认的窗口标题品牌，应用跟随全局时将使用此值</string>
     <string name="pp">品牌选择</string>
     <string name="set_title">自定义标题</string>
@@ -29,7 +31,7 @@
     <string name="title_mode_custom">自定义</string>
     <string name="show_wallpaper">允许截屏至壁纸层</string>
     <string name="desc_show_wallpaper_app">仅部分应用生效</string>
-    <string name="system_hide_master">系统层隐藏（仅Oplus 16）</string>
+    <string name="system_hide_master">系统层隐藏</string>
     <string name="system_hide_enabled">系统层隐藏已开启，重启后生效</string>
     <string name="system_hide_disabled">系统层隐藏已关闭，重启后生效</string>
     <string name="scope_request_failed">作用域请求失败: %s</string>
@@ -37,7 +39,12 @@
     <string name="must_remove_scope_suffix">（必须取消作用域）</string>
     <string name="not_in_scope_suffix">（不在作用域中）</string>
     <string name="framework_not_connected">框架未连接，无法刷新</string>
-    <string name="system_hide_warning">隐藏小窗边框/阴影，可能造成卡顿，非必要不开启。仅Oplus 15/16测试通过，其他请自测</string>
+    <string name="system_hide_warning">隐藏小窗边框/阴影，可能造成卡顿，非必要不开启。</string>
+    <string name="system_ui_enhancement">SystemUI菜单隐藏（Oplus增强）</string>
+    <string name="system_ui_enhancement_label">(SystemUI增强)</string>
+    <string name="system_ui_enhancement_warning">Oplus专用增强：隐藏小窗菜单。仅Oplus 15/16设备可用。</string>
+    <string name="system_ui_enhancement_enabled">SystemUI增强已开启，重启后生效</string>
+    <string name="system_ui_enhancement_disabled">SystemUI增强已关闭，重启后生效</string>
     <string name="feature_disabled_suffix">（未启用功能）</string>
     <string name="system_app">显示系统应用</string>
 

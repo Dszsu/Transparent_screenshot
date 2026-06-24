@@ -36,13 +36,8 @@ import io.github.libxposed.service.XposedService;
 
 public class SystemHideActivity extends AppCompatActivity implements App.ServiceListener {
 
-    private static final Set<String> EXCLUDE_PACKAGES = new HashSet<>();
-    static {
-        EXCLUDE_PACKAGES.add("system");
-        EXCLUDE_PACKAGES.add("android");
-        EXCLUDE_PACKAGES.add("com.android.systemui");
-        EXCLUDE_PACKAGES.add("oplus");
-    }
+    private static final Set<String> EXCLUDE_PACKAGES = Set.of(
+            "system", "android", "com.android.systemui", "oplus");
 
     private final Set<String> hiddenPackages = new HashSet<>();
     private final List<AppInfo> allFilteredApps = new ArrayList<>();
