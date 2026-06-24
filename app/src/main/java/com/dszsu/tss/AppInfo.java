@@ -10,6 +10,7 @@ public class AppInfo {
     private final boolean isInScope;
     private final boolean isSystemApp;
     private boolean hasConfig;
+    private boolean systemUIEnhanced;
     private boolean isSystemCritical;
 
     public AppInfo(String label, String packageName, boolean isInScope, boolean hasConfig,
@@ -22,6 +23,7 @@ public class AppInfo {
         this.hasConfig = hasConfig;
         this.isSystemCritical = isSystemCritical;
         this.isSystemApp = isSystemApp;
+        this.systemUIEnhanced = false;
     }
 
     public String getLabel() {
@@ -58,6 +60,14 @@ public class AppInfo {
 
     public void setSystemCritical(boolean systemCritical) {
         this.isSystemCritical = systemCritical;
+    }
+
+    public boolean isSystemUIEnhanced() {
+        return systemUIEnhanced;
+    }
+
+    public void setSystemUIEnhanced(boolean systemUIEnhanced) {
+        this.systemUIEnhanced = systemUIEnhanced;
     }
 
     public boolean isSystemApp() {

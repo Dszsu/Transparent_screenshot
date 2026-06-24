@@ -8,7 +8,7 @@
     <string name="skipscreenshot">Enable default window hiding</string>
     <string name="appicon">App icon</string>
     <string name="dim0">Remove shadow mask</string>
-    <string name="magicflags">Bypass focus check</string>
+    <string name="magicflags">Block touch and focus</string>
     <string name="card">Hide recent tasks</string>
     <string name="title">Change window title to</string>
     <string name="user_title">Enter custom title</string>
@@ -19,7 +19,9 @@
     <string name="app_icon">App icon</string>
     <string name="desc_skip_screenshot">Set the skipScreenshot flag to bypass system compositing</string>
     <string name="desc_window_title">A specific title will cause the system to skip compositing, similar to skipScreenshot</string>
-    <string name="desc_magic_flags">This will prevent the app from invoking the keyboard</string>
+    <string name="desc_magic_flags">Window will become unclickable</string>
+    <string name="nofocus_only">Bypass focus check</string>
+    <string name="desc_nofocus_only">Keyboard input will not pop up</string>
     <string name="gl_title">Select a default window title brand. Apps following the global setting will use this value.</string>
     <string name="pp">Brand selection</string>
     <string name="set_title">Custom title</string>
@@ -29,7 +31,7 @@
     <string name="title_mode_custom" translatable="false">Custom</string>
     <string name="show_wallpaper" translatable="false">Allow screenshot to wallpaper layer</string>
     <string name="desc_show_wallpaper_app" translatable="false">Only effective for some apps</string>
-    <string name="system_hide_master">System-level hiding (Oplus 16 only)</string>
+    <string name="system_hide_master">System-level hiding</string>
     <string name="system_hide_enabled">System-level hiding enabled, effective after reboot</string>
     <string name="system_hide_disabled">System-level hiding disabled, effective after reboot</string>
     <string name="scope_request_failed">Scope request failed: %s</string>
@@ -37,7 +39,12 @@
     <string name="must_remove_scope_suffix"> (Must Remove from Scope)</string>
     <string name="not_in_scope_suffix"> (Not in Scope)</string>
     <string name="framework_not_connected">Framework not connected, cannot refresh</string>
-    <string name="system_hide_warning">Hiding Floating Window borders/shadows,may cause lag. Enable only if necessary. Tested on Oplus 15/16 only. Self-test for other devices.</string>
+    <string name="system_hide_warning">Hiding Floating Window borders/shadows, may cause lag. Enable only if necessary.</string>
+    <string name="system_ui_enhancement">SystemUI menu hiding (Oplus)</string>
+    <string name="system_ui_enhancement_label">(SystemUI)</string>
+    <string name="system_ui_enhancement_warning">Oplus-specific enhancement: hides the floating window (小窗) menu. Only works on Oplus 15/16 devices.</string>
+    <string name="system_ui_enhancement_enabled">SystemUI enhancement enabled, effective after reboot</string>
+    <string name="system_ui_enhancement_disabled">SystemUI enhancement disabled, effective after reboot</string>
     <string name="feature_disabled_suffix"> (Feature disabled)</string>
     <string name="system_app">Show system apps</string>
 

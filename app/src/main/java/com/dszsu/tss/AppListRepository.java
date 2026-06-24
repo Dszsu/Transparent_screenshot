@@ -43,7 +43,7 @@ public class AppListRepository {
     }
 
     private static String appInfoPackageName(String packageName) {
-        return packageName == null ? "" : packageName.toLowerCase(Locale.ROOT);
+        return packageName == null ? "" : packageName.toLowerCase(Locale.ENGLISH);
     }
 
     public List<AppInfo> getAllApps() {
@@ -74,14 +74,25 @@ public class AppListRepository {
                     boolean inScope = scope.contains(lower);
                     boolean critical = isSystemCritical(lower);
                     boolean isSys = (app.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+                    if ("com.android.systemui".equals(lower)) continue; // merged into system entry
                     apps.add(new AppInfo(app.loadLabel(pm).toString(), pkg, inScope, false, critical, isSys));
                 }
 
                 if (scope.contains("system") && !seen.contains("system")) {
-                    apps.add(new AppInfo("", "system", true, false, false, false));
+                    AppInfo sysEntry = new AppInfo("", "system", true, false, false, false);
+                    try {
+                        //noinspection ConstantConditions
+                        SharedPreferences sp = service.getRemotePreferences("system_hide");
+                        //noinspection ConstantConditions
+                        if (sp != null) {
+                            sysEntry.setSystemUIEnhanced(sp.contains("system_ui_enhancement_enabled"));
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                    apps.add(sysEntry);
                 }
 
-                apps.sort(Comparator.comparing(a -> a.getLabel().toLowerCase(Locale.ROOT)));
+                apps.sort(Comparator.comparing(a -> a.getLabel().toLowerCase(Locale.ENGLISH)));
                 allApps = apps;
 
                 Set<String> configured = new HashSet<>();
@@ -117,7 +128,7 @@ public class AppListRepository {
 
     private List<AppInfo> filterApps(List<AppInfo> source, String search) {
         List<AppInfo> result = new ArrayList<>();
-        String lower = search.toLowerCase(Locale.ROOT).trim();
+        String lower = search.toLowerCase(Locale.ENGLISH).trim();
         for (AppInfo a : source) {
             if (!a.isInScope() && !a.hasConfig()) continue;
             if (lower.isEmpty() || a.getNormalizedLabel().contains(lower) || a.getNormalizedPackageName().contains(lower))

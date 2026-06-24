@@ -3,6 +3,7 @@ package com.dszsu.tss;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.Application;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
@@ -26,17 +27,16 @@ import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedModuleInterface;
 
-@SuppressWarnings({"FieldCanBeLocal"})
+@SuppressWarnings({"FieldCanBeLocal"}) // cross-method reflection cache fields
 public class MainXposedModule extends XposedModule {
 
     private static final String TAG = "TransScreenshot";
     private static final String SYSTEM_HIDE_GROUP = "system_hide";
 
 
-    private static final int FLAG_STEALTH_OVERLAY =
-            0x00000010   // FLAG_NOT_FOCUSABLE
-                    | 0x00000200 // FLAG_NOT_TOUCH_MODAL
-                    | 0x00040000;// FLAG_WATCH_OUTSIDE_TOUCH
+    private static final int FLAG_NOT_FOCUSABLE = 0x00000008;
+    private static final int FLAG_NOT_TOUCHABLE = 0x00000010;
+    private static final int FLAG_NOT_TOUCH_MODAL = 0x00000020;
 
     private static volatile boolean sAppHooksInstalled = false;
     private static volatile boolean sSystemHooksInstalled = false;
@@ -48,32 +48,41 @@ public class MainXposedModule extends XposedModule {
     private static volatile Constructor<?> sTxnConstructor;
 
     private volatile boolean systemHideEnabled = false;
+    private static volatile boolean sSystemUIHookInstalled = false;
     private volatile Set<String> systemHiddenPackages = Collections.emptySet();
+    private static volatile String sProcessName;
+    private final Object systemUILock = new Object();
+    private final Set<String> enabledFeatures = new HashSet<>();
     private static volatile Method sTxnSetSkipScreenshot;
     private static volatile Method sTxnSetSkipScreenshotLegacy;
     private static volatile Method sTxnSetSecure;
     private static volatile Method sTxnApply;
     private static volatile Method sTxnClose;
     private final Object systemLock = new Object();
-    private final Set<String> enabledFeatures = Collections.synchronizedSet(new HashSet<>());
-    private final Map<String, String> processNameCache = new ConcurrentHashMap<>();
+    private final Map<Object, Boolean> windowHideCache = Collections.synchronizedMap(new WeakHashMap<>());
     private final Map<String, SharedPreferences.OnSharedPreferenceChangeListener> appPrefsListeners
             = new ConcurrentHashMap<>();
-    private final WeakHashMap<Object, Boolean> windowHideCache = new WeakHashMap<>();
-    private final Set<Object> systemSecureApplied = Collections.newSetFromMap(new WeakHashMap<>());
-    private final Set<Object> taskSecureApplied = Collections.newSetFromMap(new WeakHashMap<>());
-    private final Set<Object> secureApplied = Collections.newSetFromMap(new WeakHashMap<>());
-    private final Set<Activity> recentsExcluded = Collections.newSetFromMap(new WeakHashMap<>());
+    private final Set<Object> systemSecureApplied = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+    private final Set<Object> taskSecureApplied = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+    private final Set<Object> processedWindows = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+    private final Set<Object> secureApplied = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+    private final Set<Object> flexibleTaskVri = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+    private final ThreadLocal<Boolean> sFlexibleMenuShowing = new ThreadLocal<>();
+    private volatile boolean systemUIEnhancementEnabled = false;
     private volatile String windowTitle = null;
     private int systemTxnMethodType = 0;
     private volatile int cacheVersion = 0;
     private final SharedPreferences.OnSharedPreferenceChangeListener systemPrefsListener =
             (prefs, key) -> {
-                if (!"packages".equals(key)) return;
-                loadSystemHiddenPackages(prefs);
-                //noinspection NonAtomicOperationOnVolatileField
-                cacheVersion++;
-                log(Log.INFO, TAG, "System hide packages updated");
+                if ("packages".equals(key)) {
+                    loadSystemHiddenPackages(prefs);
+                    //noinspection NonAtomicOperationOnVolatileField
+                    cacheVersion++;
+                    log(Log.INFO, TAG, "System hide packages updated");
+                } else if ("system_ui_enhancement_enabled".equals(key)) {
+                    systemUIEnhancementEnabled = prefs.contains("system_ui_enhancement_enabled");
+                    log(Log.INFO, TAG, "SystemUI enhancement toggled: " + systemUIEnhancementEnabled);
+                }
             };
 
     private Class<?> windowStateClass;
@@ -88,7 +97,6 @@ public class MainXposedModule extends XposedModule {
     private Field windowStateAttrsField;
 
     private Method getOwningPackageMethod;
-    private Method getWindowTagMethod;
     @Nullable
     private Field layoutParamsPackageNameField;
     @Nullable
@@ -100,8 +108,6 @@ public class MainXposedModule extends XposedModule {
     private Field animatorSurfaceControllerField;
     @Nullable
     private Field surfaceControllerSurfaceField;
-    @Nullable
-    private Field winStateAnimatorField;
     @Nullable
     private Field windowStateScField;
     private Constructor<?> systemTxnConstructor;
@@ -135,6 +141,17 @@ public class MainXposedModule extends XposedModule {
         throw new NoSuchFieldException(cls.getName() + "#" + name);
     }
 
+    @SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
+    private static String getProcessNameReflective() {
+        try {
+            Class<?> atClass = Class.forName("android.app.ActivityThread");
+            @SuppressLint("DiscouragedPrivateApi") Object at = atClass.getDeclaredMethod("currentActivityThread").invoke(null);
+            return (String) atClass.getDeclaredMethod("getProcessName").invoke(at);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     @Override
     public void onSystemServerStarting(
             @NonNull XposedModuleInterface.SystemServerStartingParam param) {
@@ -142,6 +159,7 @@ public class MainXposedModule extends XposedModule {
         try {
             SharedPreferences sysPrefs = getRemotePreferences(SYSTEM_HIDE_GROUP);
             loadSystemHiddenPackages(sysPrefs);
+            systemUIEnhancementEnabled = sysPrefs.contains("system_ui_enhancement_enabled");
             sysPrefs.registerOnSharedPreferenceChangeListener(systemPrefsListener);
             installSystemHooks(param.getClassLoader());
         } catch (Throwable t) {
@@ -151,6 +169,30 @@ public class MainXposedModule extends XposedModule {
 
     @Override
     public void onPackageReady(@NonNull PackageReadyParam param) {
+        if ("com.android.systemui".equals(param.getPackageName())) {
+            try {
+                SharedPreferences sysPrefs = getRemotePreferences(SYSTEM_HIDE_GROUP);
+                systemUIEnhancementEnabled = sysPrefs.contains("system_ui_enhancement_enabled");
+            } catch (Throwable t) {
+                systemUIEnhancementEnabled = false;
+            }
+            if (systemUIEnhancementEnabled && !sSystemUIHookInstalled) {
+                synchronized (systemUILock) {
+                    if (!sSystemUIHookInstalled) {
+                        try {
+                            initAppReflection(param.getClassLoader());
+                            installSystemUIHook(param);
+                            sSystemUIHookInstalled = true;
+                            log(Log.INFO, TAG, "SystemUI enhancement hook installed");
+                        } catch (Throwable t) {
+                            log(Log.ERROR, TAG, "SystemUI hook failed: " + t);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
         String configPackage = resolveConfigPackage(param.getPackageName());
         loadConfig(configPackage);
 
@@ -177,24 +219,25 @@ public class MainXposedModule extends XposedModule {
         }
     }
 
-    @SuppressLint("DiscouragedPrivateApi")
     private String getProcessName() {
+        String name = sProcessName;
+        if (name != null) return name;
         try {
-            @SuppressLint("PrivateApi") Class<?> atClass = Class.forName("android.app.ActivityThread");
-            Object at = atClass.getDeclaredMethod("currentActivityThread").invoke(null);
-            return (String) atClass.getDeclaredMethod("getProcessName").invoke(at);
+            name = Application.getProcessName();
         } catch (Throwable ignored) {
         }
-        return null;
+        if (name == null || name.isEmpty()) {
+            name = getProcessNameReflective();
+        }
+        sProcessName = name;
+        return name;
     }
 
     private String resolveConfigPackage(String fallbackPkg) {
         String processName = getProcessName();
         String key = processName != null ? processName : fallbackPkg;
-        return processNameCache.computeIfAbsent(key, k -> {
-            int idx = k.indexOf(':');
-            return idx > 0 ? k.substring(0, idx) : k;
-        });
+        int idx = key.indexOf(':');
+        return idx > 0 ? key.substring(0, idx) : key;
     }
 
     private void loadConfig(String configPackage) {
@@ -207,6 +250,7 @@ public class MainXposedModule extends XposedModule {
             if (prefs.contains("FLAG_DIM_BEHIND_0")) features.add("FLAG_DIM_BEHIND_0");
             if (prefs.contains("show_wallpaper")) features.add("show_wallpaper");
             if (prefs.contains("magic_flags")) features.add("magic_flags");
+            if (prefs.contains("nofocus_only")) features.add("nofocus_only");
             if (prefs.contains("hide_recent_card")) features.add("hide_recent_card");
 
             String titleValue = prefs.getString("window_title", null);
@@ -242,7 +286,8 @@ public class MainXposedModule extends XposedModule {
         return windowTitle != null
                 || enabledFeatures.contains("FLAG_DIM_BEHIND_0")
                 || enabledFeatures.contains("show_wallpaper")
-                || enabledFeatures.contains("magic_flags");
+                || enabledFeatures.contains("magic_flags")
+                || enabledFeatures.contains("nofocus_only");
     }
 
     @SuppressLint("PrivateApi")
@@ -304,8 +349,6 @@ public class MainXposedModule extends XposedModule {
             getOwningPackageMethod = null;
         }
 
-        getWindowTagMethod = findMethodInHierarchy(windowStateClass, "getWindowTag");
-        getWindowTagMethod.setAccessible(true);
 
         animatorWinField = findFieldInHierarchy(windowStateAnimatorClass, "mWin");
         animatorWinField.setAccessible(true);
@@ -332,12 +375,6 @@ public class MainXposedModule extends XposedModule {
             surfaceControllerSurfaceField = null;
         }
 
-        try {
-            winStateAnimatorField = findFieldInHierarchy(windowStateClass, "mWinAnimator");
-            winStateAnimatorField.setAccessible(true);
-        } catch (Throwable ignored) {
-            winStateAnimatorField = null;
-        }
 
         try {
             windowStateScField = findFieldInHierarchy(windowStateClass, "mSurfaceControl");
@@ -485,7 +522,8 @@ public class MainXposedModule extends XposedModule {
         if (!systemHideEnabled || animator == null) return;
         try {
             Object winState = animatorWinField.get(animator);
-            if (winState == null || !shouldHideWindow(winState)) return;
+            if (winState == null || !processedWindows.add(winState)) return;
+            if (!shouldHideWindow(winState)) return;
 
             if (animatorSurfaceControllerField != null) {
                 Object ctrl = animatorSurfaceControllerField.get(animator);
@@ -574,6 +612,7 @@ public class MainXposedModule extends XposedModule {
             windowHideCache.clear();
             systemSecureApplied.clear();
             taskSecureApplied.clear();
+            processedWindows.clear();
             localCacheVersion = cacheVersion;
         }
 
@@ -600,12 +639,6 @@ public class MainXposedModule extends XposedModule {
 
             if (pkg != null && systemHiddenPackages.contains(pkg.toLowerCase(Locale.ROOT))) {
                 hide = true;
-            } else {
-                Object tag = getWindowTagMethod.invoke(winState);
-                if (tag instanceof CharSequence
-                        && "FlexibleTaskMenu".contentEquals((CharSequence) tag)) {
-                    hide = true;
-                }
             }
         } catch (Throwable ignored) {
         }
@@ -704,7 +737,10 @@ public class MainXposedModule extends XposedModule {
             lp.flags |= WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER;
         }
         if (enabledFeatures.contains("magic_flags")) {
-            lp.flags |= FLAG_STEALTH_OVERLAY;
+            lp.flags |= FLAG_NOT_FOCUSABLE | FLAG_NOT_TOUCHABLE | FLAG_NOT_TOUCH_MODAL;
+        }
+        if (enabledFeatures.contains("nofocus_only")) {
+            lp.flags |= FLAG_NOT_FOCUSABLE;
         }
         if (windowTitle != null) {
             try {
@@ -758,6 +794,8 @@ public class MainXposedModule extends XposedModule {
                     sTxnSetSkipScreenshot.invoke(txn, sc, true);
                     applied = true;
                 } catch (Throwable ignored) {
+                    // Permanent fallback: failed method is likely broken on this ROM
+                    sTxnSetSkipScreenshot = null;
                 }
             }
             if (!applied && sTxnSetSkipScreenshotLegacy != null) {
@@ -765,6 +803,7 @@ public class MainXposedModule extends XposedModule {
                     sTxnSetSkipScreenshotLegacy.invoke(txn, true);
                     applied = true;
                 } catch (Throwable ignored) {
+                    sTxnSetSkipScreenshotLegacy = null;
                 }
             }
             if (!applied && sTxnSetSecure != null) {
@@ -799,6 +838,73 @@ public class MainXposedModule extends XposedModule {
         return null;
     }
 
+    @SuppressLint("PrivateApi")
+    private void installSystemUIHook(PackageReadyParam param) throws Exception {
+        Class<?> menuManagerClass = Class.forName(
+                "com.oplus.flexibletask.menu.FlexibleMenuManager",
+                false, param.getClassLoader());
+
+        Method getWindowParams = menuManagerClass.getDeclaredMethod("getWindowParams");
+        getWindowParams.setAccessible(true);
+
+        hook(getWindowParams)
+                .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    sFlexibleMenuShowing.set(Boolean.TRUE);
+                    return result;
+                });
+
+        Method dismissMethod = menuManagerClass.getDeclaredMethod("realExeDismiss");
+        dismissMethod.setAccessible(true);
+
+        hook(dismissMethod)
+                .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    try {
+                        return chain.proceed();
+                    } finally {
+                        sFlexibleMenuShowing.remove();
+                    }
+                });
+
+        Class<?> vriClass = param.getClassLoader().loadClass("android.view.ViewRootImpl");
+        for (Method m : vriClass.getDeclaredMethods()) {
+            final String name = m.getName();
+            if (!"setView".equals(name) && !"relayoutWindow".equals(name)) continue;
+
+            hook(m)
+                    .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        if (!systemUIEnhancementEnabled) {
+                            return chain.proceed();
+                        }
+                        Object vri = chain.getThisObject();
+                        if ("setView".equals(name)) {
+                            chain.proceed();
+                            if (Boolean.TRUE.equals(sFlexibleMenuShowing.get())) {
+                                flexibleTaskVri.add(vri);
+                                applySecure(vri);
+                                log(Log.DEBUG, TAG, "FlexibleTaskMenu skip-screenshot applied");
+                            }
+                            return null;
+                        } else {
+                            if (flexibleTaskVri.contains(vri)) {
+                                secureApplied.remove(vri);
+                            }
+                            Object result = chain.proceed();
+                            if (flexibleTaskVri.contains(vri)) {
+                                applySecure(vri);
+                            }
+                            return result;
+                        }
+                    });
+        }
+    }
+
     private void installHideRecentsHook() throws Exception {
         hook(Activity.class.getDeclaredMethod("onCreate", Bundle.class))
                 .setPriority(XposedInterface.PRIORITY_DEFAULT)
@@ -807,7 +913,6 @@ public class MainXposedModule extends XposedModule {
                     chain.proceed();
                     if (!enabledFeatures.contains("hide_recent_card")) return null;
                     Activity act = (Activity) chain.getThisObject();
-                    if (!recentsExcluded.add(act)) return null;
                     try {
                         ActivityManager am = (ActivityManager)
                                 act.getSystemService(Activity.ACTIVITY_SERVICE);

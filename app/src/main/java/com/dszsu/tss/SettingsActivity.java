@@ -6,6 +6,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.TextView;
 import android.widget.Spinner;
 import android.widget.Toast;
 
@@ -24,6 +25,11 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
     private XposedService service;
     private Spinner spinnerBrand;
     private SwitchCompat switchSystemHide;
+    private SwitchCompat switchSystemUIEnhancement;
+    private TextView textSystemHideInfo;
+    private TextView textSystemUIInfo;
+    private TextView textSystemHideLabel;
+    private TextView textSystemUILabel;
     private boolean loading = false;
 
     private static final String[] BRAND_VALUES = {
@@ -43,6 +49,11 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
 
         spinnerBrand = findViewById(R.id.spinner_brand);
         switchSystemHide = findViewById(R.id.switch_system_hide_master);
+        switchSystemUIEnhancement = findViewById(R.id.switch_system_ui_enhancement);
+        textSystemHideInfo = findViewById(R.id.text_system_hide_info);
+        textSystemUIInfo = findViewById(R.id.text_system_ui_info);
+        textSystemHideLabel = findViewById(R.id.text_system_hide_label);
+        textSystemUILabel = findViewById(R.id.text_system_ui_label);
 
         String[] brandLabels = getResources().getStringArray(R.array.brand_labels);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
@@ -85,8 +96,26 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
 
         SharedPreferences sysPrefs = service.getRemotePreferences("system_hide");
         boolean hasPackages = sysPrefs.contains("packages");
-        boolean inScope = service.getScope().contains("system");
-        switchSystemHide.setChecked(hasPackages && inScope);
+        boolean inSystemScope = service.getScope().contains("system");
+        switchSystemHide.setChecked(hasPackages);
+
+        textSystemHideInfo.setText(R.string.system_hide_warning);
+        String hideLabel = getString(R.string.system_hide_master);
+        if (hasPackages && !inSystemScope) {
+            hideLabel += " " + getString(R.string.not_in_scope_suffix).trim();
+        }
+        textSystemHideLabel.setText(hideLabel);
+
+        boolean sysUIEnabled = sysPrefs.contains("system_ui_enhancement_enabled");
+        boolean sysUIInScope = service.getScope().contains("com.android.systemui");
+        switchSystemUIEnhancement.setChecked(sysUIEnabled);
+
+        textSystemUIInfo.setText(R.string.system_ui_enhancement_warning);
+        String uiLabel = getString(R.string.system_ui_enhancement);
+        if (sysUIEnabled && !sysUIInScope) {
+            uiLabel += " " + getString(R.string.not_in_scope_suffix).trim();
+        }
+        textSystemUILabel.setText(uiLabel);
 
         loading = false;
     }
@@ -98,6 +127,7 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                 if (loading) return;
                 saveGlobalTitle(BRAND_VALUES[position]);
             }
+
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
             }
@@ -110,41 +140,85 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                 return;
             }
             if (checked) {
+                SharedPreferences prefs = service.getRemotePreferences("system_hide");
+                if (!prefs.contains("packages")) {
+                    prefs.edit().putStringSet("packages", new HashSet<>()).apply();
+                }
                 boolean alreadyInScope = service.getScope().contains("system");
-                if (alreadyInScope) {
-                    SharedPreferences prefs = service.getRemotePreferences("system_hide");
-                    if (!prefs.contains("packages")) {
-                        prefs.edit().putStringSet("packages", new HashSet<>()).apply();
-                    }
+                if (!alreadyInScope) {
+                    service.requestScope(Collections.singletonList("system"),
+                            new XposedService.OnScopeEventListener() {
+                                @Override
+                                public void onScopeRequestApproved(@NonNull List<String> approved) {
+                                    runOnUiThread(() -> {
+                                        loadConfig();
+                                        Toast.makeText(SettingsActivity.this,
+                                                R.string.system_hide_enabled, Toast.LENGTH_LONG).show();
+                                    });
+                                }
+
+                                @Override
+                                public void onScopeRequestFailed(@NonNull String message) {
+                                    runOnUiThread(() -> {
+                                        loadConfig();
+                                        Toast.makeText(SettingsActivity.this,
+                                                getString(R.string.scope_request_failed, message), Toast.LENGTH_LONG).show();
+                                    });
+                                }
+                            });
+                } else {
                     Toast.makeText(SettingsActivity.this,
                             R.string.system_hide_enabled, Toast.LENGTH_LONG).show();
-                } else {
-                    // 请求作用域
-                    service.requestScope(Collections.singletonList("system"), new XposedService.OnScopeEventListener() {
-                        @Override
-                        public void onScopeRequestApproved(@NonNull List<String> approved) {
-                            SharedPreferences prefs = service.getRemotePreferences("system_hide");
-                            if (!prefs.contains("packages")) {
-                                prefs.edit().putStringSet("packages", new HashSet<>()).apply();
-                            }
-                            runOnUiThread(() -> Toast.makeText(SettingsActivity.this,
-                                    R.string.system_hide_enabled, Toast.LENGTH_LONG).show());
-                        }
-
-                        @Override
-                        public void onScopeRequestFailed(@NonNull String message) {
-                            runOnUiThread(() -> {
-                                switchSystemHide.setChecked(false);
-                                Toast.makeText(SettingsActivity.this,
-                                        getString(R.string.scope_request_failed, message), Toast.LENGTH_LONG).show();
-                            });
-                        }
-                    });
                 }
             } else {
                 service.removeScope(Collections.singletonList("system"));
                 service.getRemotePreferences("system_hide").edit().remove("packages").apply();
                 Toast.makeText(SettingsActivity.this, R.string.system_hide_disabled, Toast.LENGTH_LONG).show();
+            }
+        });
+
+        switchSystemUIEnhancement.setOnCheckedChangeListener((v, checked) -> {
+            if (loading) return;
+            if (service == null) {
+                switchSystemUIEnhancement.setChecked(!checked);
+                return;
+            }
+            if (checked) {
+                service.getRemotePreferences("system_hide").edit()
+                        .putBoolean("system_ui_enhancement_enabled", true).apply();
+                boolean alreadyInScope = service.getScope().contains("com.android.systemui");
+                if (!alreadyInScope) {
+                    service.requestScope(Collections.singletonList("com.android.systemui"),
+                            new XposedService.OnScopeEventListener() {
+                                @Override
+                                public void onScopeRequestApproved(@NonNull List<String> approved) {
+                                    runOnUiThread(() -> {
+                                        loadConfig();
+                                        Toast.makeText(SettingsActivity.this,
+                                                R.string.system_ui_enhancement_enabled, Toast.LENGTH_LONG).show();
+                                    });
+                                }
+
+                                @Override
+                                public void onScopeRequestFailed(@NonNull String message) {
+                                    runOnUiThread(() -> {
+                                        loadConfig();
+                                        Toast.makeText(SettingsActivity.this,
+                                                getString(R.string.scope_request_failed, message), Toast.LENGTH_LONG).show();
+                                    });
+                                }
+                            });
+                } else {
+                    Toast.makeText(SettingsActivity.this,
+                            R.string.system_ui_enhancement_enabled, Toast.LENGTH_LONG).show();
+                }
+            } else {
+                service.removeScope(Collections.singletonList("com.android.systemui"));
+                service.getRemotePreferences("system_hide").edit()
+                        .remove("system_ui_enhancement_enabled").apply();
+                loadConfig();
+                Toast.makeText(SettingsActivity.this,
+                        R.string.system_ui_enhancement_disabled, Toast.LENGTH_LONG).show();
             }
         });
     }

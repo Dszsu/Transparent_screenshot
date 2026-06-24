@@ -18,7 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.dszsu.tss.databinding.ItemAppBinding;
 
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -27,10 +27,7 @@ import java.util.concurrent.Executors;
 
 public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
 
-    private static final Set<String> VIRTUAL_SYSTEM_PACKAGES = new HashSet<>();
-    static {
-        VIRTUAL_SYSTEM_PACKAGES.add("system");
-    }
+    private static final Set<String> VIRTUAL_SYSTEM_PACKAGES = Collections.singleton("system");
 
     private static final DiffUtil.ItemCallback<AppInfo> DIFF_CALLBACK = new DiffUtil.ItemCallback<>() {
         @Override
@@ -91,6 +88,9 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
                 suffix = holder.itemView.getContext().getString(R.string.feature_disabled_suffix);
                 color = Color.RED;
             } else {
+                if (app.isSystemUIEnhanced()) {
+                    displayName += " " + holder.itemView.getContext().getString(R.string.system_ui_enhancement_label);
+                }
                 color = Color.BLUE;
             }
         } else if (app.isSystemCritical()) {
@@ -127,13 +127,15 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         if (cached != null) {
             holder.binding.ivIcon.setImageDrawable(cached);
         } else {
+            final String targetPkg = iconSourcePkg;
+            final String currentPkg = holder.binding.tvPackage.getText().toString().toLowerCase(Locale.ROOT);
+            final boolean expectAndroid = VIRTUAL_SYSTEM_PACKAGES.contains(currentPkg) && "android".equals(targetPkg);
             holder.binding.ivIcon.setImageDrawable(defaultIcon);
             executor.execute(() -> {
                 try {
-                    Drawable icon = packageManager.getApplicationIcon(iconSourcePkg);
-                    iconCache.put(iconSourcePkg, icon);
-                    String currentPkg = holder.binding.tvPackage.getText().toString().toLowerCase(Locale.ROOT);
-                    if (iconSourcePkg.equals(currentPkg) || (VIRTUAL_SYSTEM_PACKAGES.contains(currentPkg) && "android".equals(iconSourcePkg))) {
+                    Drawable icon = packageManager.getApplicationIcon(targetPkg);
+                    iconCache.put(targetPkg, icon);
+                    if (targetPkg.equals(currentPkg) || expectAndroid) {
                         mainHandler.post(() -> holder.binding.ivIcon.setImageDrawable(icon));
                     }
                 } catch (PackageManager.NameNotFoundException ignored) {
@@ -148,12 +150,14 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         if (cached != null) {
             holder.binding.ivIcon.setImageDrawable(cached);
         } else {
+            final String targetPkg = pkg;
+            final String currentPkg = holder.binding.tvPackage.getText().toString();
             holder.binding.ivIcon.setImageDrawable(defaultIcon);
             executor.execute(() -> {
                 try {
-                    Drawable icon = packageManager.getApplicationIcon(pkg);
-                    iconCache.put(pkg, icon);
-                    if (pkg.equals(holder.binding.tvPackage.getText().toString())) {
+                    Drawable icon = packageManager.getApplicationIcon(targetPkg);
+                    iconCache.put(targetPkg, icon);
+                    if (targetPkg.equals(currentPkg)) {
                         mainHandler.post(() -> holder.binding.ivIcon.setImageDrawable(icon));
                     }
                 } catch (PackageManager.NameNotFoundException ignored) {

@@ -36,7 +36,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
     private boolean loading = false;
     private String prefsGroup;
     private SwitchCompat switchDisableSkipScreenshot, switchDimBehind, switchShowWallpaper,
-            switchMagicFlags, switchHideRecentCard, switchWindowTitle;
+            switchMagicFlags, switchNofocusOnly, switchHideRecentCard, switchWindowTitle;
     private TextView textGlobalHint;
 
     @Override
@@ -61,6 +61,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         switchDimBehind = findViewById(R.id.switch_dim_behind);
         switchShowWallpaper = findViewById(R.id.switch_show_wallpaper);
         switchMagicFlags = findViewById(R.id.switch_magic_flags);
+        switchNofocusOnly = findViewById(R.id.switch_nofocus_only);
         switchHideRecentCard = findViewById(R.id.switch_hide_recent_card);
         switchWindowTitle = findViewById(R.id.switch_window_title);
         editCustomTitle = findViewById(R.id.edit_custom_title);
@@ -109,6 +110,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         switchDimBehind.setChecked(prefs.contains("FLAG_DIM_BEHIND_0"));
         switchShowWallpaper.setChecked(prefs.contains("show_wallpaper"));
         switchMagicFlags.setChecked(prefs.contains("magic_flags"));
+        switchNofocusOnly.setChecked(prefs.contains("nofocus_only"));
         switchHideRecentCard.setChecked(prefs.contains("hide_recent_card"));
 
         boolean titleEnabled = prefs.contains("window_title");
@@ -160,31 +162,34 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
 
     private void setupListeners() {
         switchDisableSkipScreenshot.setOnCheckedChangeListener((v, checked) -> {
-            if (!loading) saveToggle("enable_skip_screenshot", checked);
+            if (!loading) savePref("enable_skip_screenshot", checked);
         });
         switchDimBehind.setOnCheckedChangeListener((v, checked) -> {
-            if (!loading) saveToggle("FLAG_DIM_BEHIND_0", checked);
+            if (!loading) savePref("FLAG_DIM_BEHIND_0", checked);
         });
         switchShowWallpaper.setOnCheckedChangeListener((v, checked) -> {
-            if (!loading) saveToggle("show_wallpaper", checked);
+            if (!loading) savePref("show_wallpaper", checked);
         });
         switchMagicFlags.setOnCheckedChangeListener((v, checked) -> {
-            if (!loading) saveToggle("magic_flags", checked);
+            if (!loading) savePref("magic_flags", checked);
+        });
+        switchNofocusOnly.setOnCheckedChangeListener((v, checked) -> {
+            if (!loading) savePref("nofocus_only", checked);
         });
         switchHideRecentCard.setOnCheckedChangeListener((v, checked) -> {
-            if (!loading) saveToggle("hide_recent_card", checked);
+            if (!loading) savePref("hide_recent_card", checked);
         });
 
         switchWindowTitle.setOnCheckedChangeListener((v, checked) -> {
             setTitlePickerEnabled(checked);
             if (loading) return;
             if (checked) {
-                saveWindowTitle("$global");
+                savePref("$global");
                 spinnerTitleMode.setSelection(0, false);
                 editCustomTitle.setVisibility(View.GONE);
                 updateGlobalHint();
             } else {
-                saveWindowTitle(null);
+                savePref(null);
             }
         });
 
@@ -194,13 +199,13 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
                 if (loading) return;
                 if (position == 0) {
                     editCustomTitle.setVisibility(View.GONE);
-                    saveWindowTitle("$global");
+                    savePref("$global");
                     updateGlobalHint();
                 } else {
                     editCustomTitle.setVisibility(View.VISIBLE);
                     editCustomTitle.requestFocus();
                     textGlobalHint.setVisibility(View.GONE);
-                    saveWindowTitle(editCustomTitle.getText().toString().trim());
+                    savePref(editCustomTitle.getText().toString().trim());
                 }
             }
             @Override
@@ -216,7 +221,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (loading) return;
                 if (spinnerTitleMode.getSelectedItemPosition() == 1 && switchWindowTitle.isChecked()) {
-                    saveWindowTitle(s.toString().trim());
+                    savePref(s.toString().trim());
                 }
             }
             @Override
@@ -229,18 +234,18 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         }
     }
 
-    private void saveWindowTitle(String value) {
+    private void savePref(String stringValue) {
         if (service == null) return;
         SharedPreferences.Editor editor = service.getRemotePreferences(prefsGroup).edit();
-        if (value == null) {
+        if (stringValue == null) {
             editor.remove("window_title");
         } else {
-            editor.putString("window_title", value);
+            editor.putString("window_title", stringValue);
         }
         editor.apply();
     }
 
-    private void saveToggle(String key, boolean enable) {
+    private void savePref(String key, boolean enable) {
         if (service == null) return;
         SharedPreferences.Editor editor = service.getRemotePreferences(prefsGroup).edit();
         if (enable) {
@@ -260,10 +265,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-    }
 
     @Override
     protected void onDestroy() {
