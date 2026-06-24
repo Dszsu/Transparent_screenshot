@@ -167,7 +167,7 @@ excellent projects:
 | 项目 Project                                                 | 说明 Description                         |
 |------------------------------------------------------------|----------------------------------------|
 | [SpoofTitle](https://github.com/ZhongYeZi-meow/SpoofTitle) | 窗口标题伪装逻辑 / Window title spoofing logic |
-| [-HideScreen-](https://github.com/zjkkzk/-HideScreen-)     | 防截屏问题修复 / Anti‑screenshot fixes        |
+| [-HideScreen-](https://github.com/zjkkzk/-HideScreen)     | 防截屏问题修复 / Anti‑screenshot fixes        |
 
 ---
 
