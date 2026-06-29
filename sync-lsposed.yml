@@ -30,16 +30,13 @@ jobs:
           NAME="${{ github.event.release.name }}"
           TARGET_TAG="${TAG}-${NAME}"
 
-          # Append source link
           echo "" >> release_body.md
           echo "---" >> release_body.md
           echo "自动同步自 [${{ github.repository }}](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.event.release.tag_name }})" >> release_body.md
 
-          # Delete existing release if retrying
           gh release delete "$TARGET_TAG" \
             --repo Xposed-Modules-Repo/com.dszsu.tss --yes 2>/dev/null || true
 
-          # Create new release with full notes
           gh release create "$TARGET_TAG" \
             --repo Xposed-Modules-Repo/com.dszsu.tss \
             --title "$NAME" \
