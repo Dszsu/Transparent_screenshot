@@ -1,8 +1,7 @@
 package com.dszsu.tss;
 
-import android.content.SharedPreferences;
-import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
+import android.annotation.SuppressLint;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -10,10 +9,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.LruCache;
 import android.view.LayoutInflater;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -22,10 +21,11 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.dszsu.tss.databinding.ActivitySystemHideBinding;
+import com.dszsu.tss.databinding.ActivityScopeBinding;
 import com.dszsu.tss.databinding.ItemSystemHideBinding;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -35,24 +35,22 @@ import java.util.concurrent.Executors;
 
 import io.github.libxposed.service.XposedService;
 
-public class SystemHideActivity extends AppCompatActivity implements App.ServiceListener {
+public class ScopeManageActivity extends AppCompatActivity implements App.ServiceListener {
 
-    private static final Set<String> EXCLUDE_PACKAGES = Set.of(
-            "system", "android", "com.android.systemui", "oplus");
+    private static final String VIRTUAL_SYSTEM = "system";
 
-    private final Set<String> hiddenPackages = new HashSet<>();
+    private final Set<String> scopePackages = new HashSet<>();
     private final List<AppInfo> allFilteredApps = new ArrayList<>();
 
-    private ActivitySystemHideBinding binding;
+    private ActivityScopeBinding binding;
     private XposedService service;
-    private SystemHideAdapter adapter;
-    private boolean showSystemApps = false;
+    private ScopeAdapter adapter;
     private String currentQuery = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        binding = ActivitySystemHideBinding.inflate(getLayoutInflater());
+        binding = ActivityScopeBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
         setSupportActionBar(binding.toolbar);
@@ -67,6 +65,9 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         App.addListener(this);
     }
 
+    private final Handler searchHandler = new Handler(Looper.getMainLooper());
+    private final Runnable searchRunnable = () -> applyFilter(currentQuery);
+
     private void setupSearchView() {
         binding.searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
@@ -78,7 +79,8 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
             @Override
             public boolean onQueryTextChange(String newText) {
                 currentQuery = (newText != null) ? newText : "";
-                applyFilter(currentQuery);
+                searchHandler.removeCallbacks(searchRunnable);
+                searchHandler.postDelayed(searchRunnable, 200);
                 return true;
             }
         });
@@ -93,41 +95,15 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
     }
 
     @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_system_hide, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onPrepareOptionsMenu(Menu menu) {
-        MenuItem showSystemItem = menu.findItem(R.id.action_show_system);
-        if (showSystemItem != null) {
-            showSystemItem.setChecked(showSystemApps);
-        }
-        return super.onPrepareOptionsMenu(menu);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (item.getItemId() == R.id.action_show_system) {
-            showSystemApps = !item.isChecked();
-            item.setChecked(showSystemApps);
-            rebuildAppList();
-            return true;
-        }
-        if (item.getItemId() == android.R.id.home) {
-            finish();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-
-    @Override
     public void onServiceChanged(XposedService svc) {
         service = svc;
         if (svc != null) {
-            loadHiddenPackages();
+            loadScopePackages();
             rebuildAppList();
+        } else {
+            scopePackages.clear();
+            allFilteredApps.clear();
+            if (adapter != null) adapter.submitList(allFilteredApps, scopePackages);
         }
     }
 
@@ -148,36 +124,29 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         return query == null ? "" : query.toLowerCase(Locale.ROOT).trim();
     }
 
-    private void loadHiddenPackages() {
+    private void loadScopePackages() {
+        scopePackages.clear();
         if (service == null) return;
-        SharedPreferences prefs = service.getRemotePreferences("system_hide");
-        hiddenPackages.clear();
-        Set<String> raw = prefs.getStringSet("packages", new HashSet<>());
+        List<String> raw = service.getScope();
         for (String p : raw) {
             if (p != null && !p.isEmpty()) {
-                hiddenPackages.add(normalizePackageName(p));
+                scopePackages.add(normalizePackageName(p));
             }
         }
+        scopePackages.remove(VIRTUAL_SYSTEM);
     }
 
     private void rebuildAppList() {
         List<AppInfo> allApps = AppListRepository.getInstance().getAllApps();
         allFilteredApps.clear();
-
         for (AppInfo app : allApps) {
             String lowerPkg = normalizePackageName(app.getPackageName());
-            boolean enabled = hiddenPackages.contains(lowerPkg);
-
-            if (!enabled) {
-                if (EXCLUDE_PACKAGES.contains(lowerPkg) || isSubPackageOfExcluded(lowerPkg))
-                    continue;
-                if (!showSystemApps && app.isSystemApp()) continue;
-            }
+            if (VIRTUAL_SYSTEM.equals(lowerPkg)) continue;
             allFilteredApps.add(app);
         }
 
         if (adapter == null) {
-            adapter = new SystemHideAdapter(
+            adapter = new ScopeAdapter(
                     getPackageManager(),
                     getPackageManager().getDefaultActivityIcon(),
                     this::onToggle
@@ -185,13 +154,6 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
             binding.rvApps.setAdapter(adapter);
         }
         applyFilter(currentQuery);
-    }
-
-    private boolean isSubPackageOfExcluded(String lowerPkg) {
-        for (String excluded : EXCLUDE_PACKAGES) {
-            if (lowerPkg.startsWith(excluded + ".")) return true;
-        }
-        return false;
     }
 
     private void applyFilter(String query) {
@@ -206,7 +168,7 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
                     && !normalizePackageName(app.getPackageName()).contains(lowerQuery)) {
                 continue;
             }
-            if (hiddenPackages.contains(normalizePackageName(app.getPackageName()))) {
+            if (scopePackages.contains(normalizePackageName(app.getPackageName()))) {
                 enabled.add(app);
             } else {
                 disabled.add(app);
@@ -219,21 +181,56 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         List<AppInfo> finalList = new ArrayList<>(enabled.size() + disabled.size());
         finalList.addAll(enabled);
         finalList.addAll(disabled);
-        adapter.submitList(finalList, hiddenPackages);
+        adapter.submitList(finalList, scopePackages);
     }
 
     private void onToggle(String packageName, boolean enabled) {
         if (service == null) return;
         String lowerPkg = normalizePackageName(packageName);
         if (enabled) {
-            hiddenPackages.add(lowerPkg);
+            if (scopePackages.contains(lowerPkg)) return;
+            service.requestScope(Collections.singletonList(lowerPkg),
+                    new XposedService.OnScopeEventListener() {
+                        @Override
+                        public void onScopeRequestApproved(@NonNull List<String> approved) {
+                            runOnUiThread(() -> {
+                                loadScopePackages();
+                                applyFilter(currentQuery);
+                                Toast.makeText(ScopeManageActivity.this,
+                                        getString(R.string.scope_added, packageName),
+                                        Toast.LENGTH_SHORT).show();
+                            });
+                        }
+
+                        @Override
+                        public void onScopeRequestFailed(@NonNull String message) {
+                            runOnUiThread(() -> {
+                                loadScopePackages();
+                                applyFilter(currentQuery);
+                                adapter.refreshItem(packageName);
+                                Toast.makeText(ScopeManageActivity.this,
+                                        getString(R.string.scope_request_failed, message),
+                                        Toast.LENGTH_LONG).show();
+                            });
+                        }
+                    });
         } else {
-            hiddenPackages.remove(lowerPkg);
+            if (!scopePackages.contains(lowerPkg)) return;
+            service.removeScope(Collections.singletonList(lowerPkg));
+            scopePackages.remove(lowerPkg);
+            applyFilter(currentQuery);
+            Toast.makeText(this, getString(R.string.scope_removed, packageName),
+                    Toast.LENGTH_SHORT).show();
         }
-        service.getRemotePreferences("system_hide").edit()
-                .putStringSet("packages", new HashSet<>(hiddenPackages))
-                .apply();
-        applyFilter(currentQuery);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     @Override
@@ -242,7 +239,7 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         App.removeListener(this);
     }
 
-    private static class SystemHideAdapter extends RecyclerView.Adapter<SystemHideAdapter.VH> {
+    private static class ScopeAdapter extends RecyclerView.Adapter<ScopeAdapter.VH> {
 
         private final PackageManager packageManager;
         private final Drawable defaultIcon;
@@ -300,7 +297,7 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
             }
         }
 
-        SystemHideAdapter(PackageManager pm, Drawable defaultIcon, OnToggleListener listener) {
+        ScopeAdapter(PackageManager pm, Drawable defaultIcon, OnToggleListener listener) {
             this.packageManager = pm;
             this.defaultIcon = defaultIcon;
             this.listener = listener;
@@ -318,6 +315,16 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
             currentList.clear();
             currentList.addAll(newList);
             notifyDataSetChanged();
+        }
+
+        void refreshItem(String packageName) {
+            String target = normalizePackageName(packageName);
+            for (int i = 0; i < currentList.size(); i++) {
+                if (normalizePackageName(currentList.get(i).getPackageName()).equals(target)) {
+                    notifyItemChanged(i);
+                    return;
+                }
+            }
         }
 
         interface OnToggleListener {

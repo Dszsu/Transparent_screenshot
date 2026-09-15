@@ -18,7 +18,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.SwitchCompat;
+import com.google.android.material.materialswitch.MaterialSwitch;
 
 import java.util.Locale;
 
@@ -35,7 +35,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
     private static final String KEY_GLOBAL_TITLE = "title";
     private boolean loading = false;
     private String prefsGroup;
-    private SwitchCompat switchDisableSkipScreenshot, switchDimBehind, switchShowWallpaper,
+    private MaterialSwitch switchDisableSkipScreenshot, switchDimBehind, switchShowWallpaper,
             switchMagicFlags, switchNofocusOnly, switchHideRecentCard, switchWindowTitle;
     private TextView textGlobalHint;
 
@@ -52,8 +52,33 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         prefsGroup = packageName.toLowerCase(Locale.ROOT);
 
         bindViews();
+        applySegmentedBackground();
         setTopBarInfo();
         App.addListener(this);
+    }
+
+    private void applySegmentedBackground() {
+        android.view.ViewGroup group = findViewById(R.id.settings_group);
+        if (group == null) return;
+        int n = group.getChildCount();
+        float density = getResources().getDisplayMetrics().density;
+        float r16 = 16f * density, r4 = 4f * density;
+        for (int i = 0; i < n; i++) {
+            android.view.View v = group.getChildAt(i);
+            float tl, tr, br, bl;
+            if (i == 0) {
+                tl = r16; tr = r16; br = r4; bl = r4;
+            } else if (i == n - 1) {
+                tl = r4; tr = r4; br = r16; bl = r16;
+            } else {
+                tl = r4; tr = r4; br = r4; bl = r4;
+            }
+            android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+            g.setColor(com.google.android.material.color.MaterialColors.getColor(
+                    this, com.google.android.material.R.attr.colorSurfaceContainerHigh, 0xFFECE6F0));
+            g.setCornerRadii(new float[]{tl, tl, tr, tr, br, br, bl, bl});
+            v.setBackground(g);
+        }
     }
 
     private void bindViews() {

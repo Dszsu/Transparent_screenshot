@@ -50,7 +50,9 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
         });
 
         binding.rvApps.setLayoutManager(new LinearLayoutManager(this));
+        binding.rvApps.setItemAnimator(null);
         binding.rvApps.setAdapter(adapter);
+        binding.rvApps.setVisibility(View.GONE); // 作用域加载完成前隐藏列表
 
         binding.swipeRefresh.setOnRefreshListener(() -> {
             if (service != null) {
@@ -60,6 +62,9 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
                 Toast.makeText(this, R.string.framework_not_connected, Toast.LENGTH_SHORT).show();
             }
         });
+
+        binding.fabAddScope.setOnClickListener(v ->
+                startActivity(new Intent(MainActivity.this, ScopeManageActivity.class)));
 
         binding.searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
@@ -75,7 +80,6 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
         });
 
         App.addListener(this);
-        showEmptyHint(true);
     }
 
     @Override
@@ -95,9 +99,9 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
             AppListRepository.getInstance().refreshData(svc, getPackageManager(), this);
         } else {
             systemHideEnabled = false;
-            adapter.submitList(Collections.emptyList());
+            adapter.setData(Collections.emptyList());
             binding.swipeRefresh.setRefreshing(false);
-            showEmptyHint(true);
+            binding.rvApps.setVisibility(View.GONE);
         }
     }
 
@@ -109,9 +113,9 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
                 break;
             }
         }
-        adapter.submitList(filteredList);
+        adapter.setData(filteredList);
         binding.swipeRefresh.setRefreshing(false);
-        showEmptyHint(filteredList.isEmpty());
+        binding.rvApps.setVisibility(filteredList.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     @Override
@@ -140,12 +144,8 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
                 break;
             }
         }
-        adapter.submitList(filtered);
-        showEmptyHint(filtered.isEmpty());
-    }
-
-    private void showEmptyHint(boolean empty) {
-        binding.emptyHint.setVisibility(empty ? View.VISIBLE : View.GONE);
+        adapter.setData(filtered);
+        binding.rvApps.setVisibility(filtered.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     @Override
