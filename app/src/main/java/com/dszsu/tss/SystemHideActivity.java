@@ -35,7 +35,8 @@ import java.util.concurrent.Executors;
 
 import io.github.libxposed.service.XposedService;
 
-public class SystemHideActivity extends AppCompatActivity implements App.ServiceListener {
+public class SystemHideActivity extends AppCompatActivity implements App.ServiceListener,
+        AppListRepository.OnDataRefreshListener {
 
     private static final Set<String> EXCLUDE_PACKAGES = Set.of(
             "system", "android", "com.android.systemui", "oplus");
@@ -48,6 +49,9 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
     private SystemHideAdapter adapter;
     private boolean showSystemApps = false;
     private String currentQuery = "";
+
+    private final Handler refreshHandler = new Handler(Looper.getMainLooper());
+    private final Runnable refreshRetry = () -> ensureDataLoaded();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -127,8 +131,42 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         service = svc;
         if (svc != null) {
             loadHiddenPackages();
-            rebuildAppList();
+            ensureDataLoaded();
+        } else {
+            hiddenPackages.clear();
+            allFilteredApps.clear();
+            refreshHandler.removeCallbacks(refreshRetry);
+            if (adapter != null) adapter.submitList(allFilteredApps, hiddenPackages);
         }
+    }
+
+    /**
+     * 应用列表由主界面异步加载。若进入本界面时快照尚未就绪
+     * （或刷新正被其他监听者占用），主动触发一次刷新并监听完成回调；
+     * 若刷新被 isLoading 跳过，则延迟重试直到数据就绪。
+     */
+    private void ensureDataLoaded() {
+        if (service == null || isFinishing()) return;
+        if (!allFilteredApps.isEmpty()) return;
+        AppListRepository repo = AppListRepository.getInstance();
+        if (!repo.getAllApps().isEmpty()) {
+            rebuildAppList();
+            return;
+        }
+        repo.refreshData(service, getPackageManager(), this);
+        refreshHandler.removeCallbacks(refreshRetry);
+        refreshHandler.postDelayed(refreshRetry, 500);
+    }
+
+    @Override
+    public void onRefreshComplete(List<AppInfo> filteredList) {
+        if (service == null || isFinishing()) return;
+        refreshHandler.removeCallbacks(refreshRetry);
+        rebuildAppList();
+    }
+
+    @Override
+    public void onLoadingStateChanged(boolean isLoading) {
     }
 
     private void hideKeyboard() {
@@ -239,6 +277,7 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        refreshHandler.removeCallbacks(refreshRetry);
         App.removeListener(this);
     }
 
