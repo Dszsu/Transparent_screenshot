@@ -4,16 +4,15 @@ import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.LruCache;
-import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
-import androidx.recyclerview.widget.AsyncListDiffer;
-import androidx.recyclerview.widget.DiffUtil;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.dszsu.tss.databinding.ItemAppBinding;
@@ -29,21 +28,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
 
     private static final Set<String> VIRTUAL_SYSTEM_PACKAGES = Collections.singleton("system");
 
-    private static final DiffUtil.ItemCallback<AppInfo> DIFF_CALLBACK = new DiffUtil.ItemCallback<>() {
-        @Override
-        public boolean areItemsTheSame(@NonNull AppInfo oldItem, @NonNull AppInfo newItem) {
-            return oldItem.getPackageName().equals(newItem.getPackageName());
-        }
-        @Override
-        public boolean areContentsTheSame(@NonNull AppInfo oldItem, @NonNull AppInfo newItem) {
-            return oldItem.getLabel().equals(newItem.getLabel())
-                    && oldItem.isInScope() == newItem.isInScope()
-                    && oldItem.hasConfig() == newItem.hasConfig()
-                    && oldItem.isSystemCritical() == newItem.isSystemCritical();
-        }
-    };
-
-    private final AsyncListDiffer<AppInfo> differ = new AsyncListDiffer<>(this, DIFF_CALLBACK);
+    private List<AppInfo> list = Collections.emptyList();
     private final OnItemClickListener listener;
     private final LruCache<String, Drawable> iconCache = new LruCache<>(50);
     private final Executor executor = Executors.newSingleThreadExecutor();
@@ -57,8 +42,10 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         this.listener = listener;
     }
 
-    public void submitList(List<AppInfo> list) {
-        differ.submitList(list);
+    @SuppressLint("NotifyDataSetChanged")
+    public void setData(List<AppInfo> newList) {
+        list = newList == null ? Collections.emptyList() : newList;
+        notifyDataSetChanged();
     }
 
     @NonNull
@@ -71,16 +58,12 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
     @SuppressLint("SetTextI18n")
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        AppInfo app = differ.getCurrentList().get(position);
+        AppInfo app = list.get(position);
         holder.binding.tvPackage.setText(app.getPackageName());
-
-        TypedValue typedValue = new TypedValue();
-        holder.itemView.getContext().getTheme().resolveAttribute(android.R.attr.textColorPrimary, typedValue, true);
-        int defaultTextColor = typedValue.data;
 
         String displayName = app.getLabel();
         String suffix = null;
-        int color = defaultTextColor;
+        int color = ContextCompat.getColor(holder.itemView.getContext(), R.color.m3_on_surface);
 
         if ("system".equals(app.getPackageName())) {
             displayName = holder.itemView.getContext().getString(R.string.system_framework_label);
@@ -107,6 +90,23 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
             holder.binding.tvLabel.setText(displayName);
         }
         holder.binding.tvLabel.setTextColor(color);
+
+        // 分段胶囊：首项顶部/末项底部大圆角，其余小圆角（KernelSU Segmented 风格）
+        float density = holder.itemView.getResources().getDisplayMetrics().density;
+        float outer = 16f * density;
+        float inner = 4f * density;
+        boolean first = position == 0;
+        boolean last = position == getItemCount() - 1;
+        float tl = first ? outer : inner;
+        float tr = first ? outer : inner;
+        float br = last ? outer : inner;
+        float bl = last ? outer : inner;
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(com.google.android.material.color.MaterialColors.getColor(
+                holder.itemView.getContext(),
+                com.google.android.material.R.attr.colorSurfaceContainerHigh, 0xFFECE6F0));
+        bg.setCornerRadii(new float[]{tl, tl, tr, tr, br, br, bl, bl});
+        holder.binding.getRoot().setBackground(bg);
 
         if (app.isSystemCritical()) {
             loadCriticalIcon(app, holder);
@@ -168,7 +168,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
 
     @Override
     public int getItemCount() {
-        return differ.getCurrentList().size();
+        return list.size();
     }
 
     @Override

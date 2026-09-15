@@ -45,6 +45,11 @@
             android:exported="false"
             android:label="系统层隐藏"
             android:parentActivityName=".MainActivity" />
+        <activity
+            android:name=".ScopeManageActivity"
+            android:exported="false"
+            android:label="应用作用域"
+            android:parentActivityName=".MainActivity" />
 
     </application>
 </manifest>

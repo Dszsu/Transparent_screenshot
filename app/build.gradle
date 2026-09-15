@@ -3,27 +3,27 @@ plugins {
 }
 
 android {
-    namespace 'com.dszsu.tss'
+    namespace = 'com.dszsu.tss'
     compileSdk {
-        version = release(36)
+        version = release(37)
     }
 
     defaultConfig {
-        applicationId "com.dszsu.tss"
-        minSdk 29
-        targetSdk 36
-        versionCode 211
-        versionName '2.1.1'
+        applicationId = "com.dszsu.tss"
+        minSdk = 29
+        targetSdk = 37
+        versionCode = 211
+        versionName = '2.1.1'
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled = true
+            shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug
+            signingConfig = signingConfigs.debug
         }
     }
     compileOptions {
@@ -31,7 +31,10 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
     buildFeatures {
-        viewBinding true
+        viewBinding = true
+    }
+    lint {
+        disable += ['GradleDependency', 'NewerVersionAvailable', 'IconLocation', 'IconLauncherShape']
     }
 }
 
