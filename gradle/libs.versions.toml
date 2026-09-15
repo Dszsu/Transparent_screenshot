@@ -1,5 +1,5 @@
 [versions]
-agp = "9.0.1"
+agp = "9.4.0"
 api = "101.0.1"
 junit = "4.13.2"
 #noinspection GradleDependency
@@ -25,4 +25,3 @@ swiperefreshlayout = { group = "androidx.swiperefreshlayout", name = "swiperefre
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-
