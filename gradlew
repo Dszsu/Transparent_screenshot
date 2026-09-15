@@ -45,7 +45,7 @@
 #       by Bash, Ksh, etc; in particular arrays are avoided.
 #
 #       The "traditional" practice of packing multiple parameters into a
-#       space-separated string is a well documented source of bugs and security
+#       space-separated string is a well known source of bugs and security
 #       problems, so this is (mostly) avoided, by progressively accumulating
 #       options in "$@", and eventually passing that to Java.
 #
@@ -114,7 +114,7 @@ case "$( uname )" in                #(
   NONSTOP* )        nonstop=true ;;
 esac
 
-CLASSPATH="\"\""
+CLASSPATH="\\\"\\\""
 
 
 # Determine the Java command to use to start the JVM.
