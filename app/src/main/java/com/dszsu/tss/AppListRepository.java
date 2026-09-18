@@ -74,16 +74,16 @@ public class AppListRepository {
                     boolean inScope = scope.contains(lower);
                     boolean critical = isSystemCritical(lower);
                     boolean isSys = (app.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
-                    if ("com.android.systemui".equals(lower)) continue; // merged into system entry
+                    if ("com.android.systemui".equals(lower)) continue;
                     apps.add(new AppInfo(app.loadLabel(pm).toString(), pkg, inScope, false, critical, isSys));
                 }
 
                 if (scope.contains("system") && !seen.contains("system")) {
                     AppInfo sysEntry = new AppInfo("", "system", true, false, false, false);
                     try {
-                        //noinspection ConstantConditions
+
                         SharedPreferences sp = service.getRemotePreferences("system_hide");
-                        //noinspection ConstantConditions
+
                         if (sp != null) {
                             sysEntry.setSystemUIEnhanced(sp.contains("system_ui_enhancement_enabled"));
                         }

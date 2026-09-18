@@ -13,7 +13,7 @@
         android:background="?attr/colorSurface"
         android:theme="?attr/actionBarTheme"
         app:contentInsetStartWithNavigation="0dp"
-        app:title="">
+        app:title="@string/scope_title">
 
         <androidx.appcompat.widget.SearchView
             style="@style/Widget.Material3.SearchView"
@@ -22,7 +22,7 @@
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
             android:iconifiedByDefault="false"
-            android:queryHint="搜索应用名或包名" />
+            android:queryHint="@string/scope_search_hint" />
     </com.google.android.material.appbar.MaterialToolbar>
 
     <androidx.recyclerview.widget.RecyclerView

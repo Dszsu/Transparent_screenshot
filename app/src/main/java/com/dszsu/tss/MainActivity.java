@@ -4,6 +4,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -30,6 +32,9 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
     private String currentSearch = "";
     private boolean systemHideEnabled = false;
 
+    private final Handler searchHandler = new Handler(Looper.getMainLooper());
+    private final Runnable searchRunnable = () -> applyFilter();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -38,7 +43,7 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
 
         setSupportActionBar(binding.toolbar);
 
-        adapter = new AppAdapter(getPackageManager(), getPackageManager().getDefaultActivityIcon(), app -> {
+        adapter = new AppAdapter(this, getPackageManager(), getPackageManager().getDefaultActivityIcon(), app -> {
             if (app.isSystemCritical()) return;
             if ("system".equals(app.getPackageName())) {
                 startActivity(new Intent(MainActivity.this, SystemHideActivity.class));
@@ -51,6 +56,19 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
 
         binding.rvApps.setLayoutManager(new LinearLayoutManager(this));
         binding.rvApps.setAdapter(adapter);
+        binding.rvApps.setVisibility(View.GONE);
+
+        binding.nestedScroll.setOnScrollChangeListener(new View.OnScrollChangeListener() {
+            @Override
+            public void onScrollChange(View v, int scrollX, int scrollY,
+                                       int oldScrollX, int oldScrollY) {
+                if (scrollY - oldScrollY > 8) {
+                    binding.fabAddScope.shrink();
+                } else if (oldScrollY - scrollY > 8) {
+                    binding.fabAddScope.extend();
+                }
+            }
+        });
 
         binding.swipeRefresh.setOnRefreshListener(() -> {
             if (service != null) {
@@ -61,6 +79,9 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
             }
         });
 
+        binding.fabAddScope.setOnClickListener(v ->
+                startActivity(new Intent(MainActivity.this, ScopeManageActivity.class)));
+
         binding.searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
@@ -68,14 +89,14 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
             }
             @Override
             public boolean onQueryTextChange(String newText) {
-                currentSearch = newText;
-                applyFilter();
+                currentSearch = newText == null ? "" : newText;
+                searchHandler.removeCallbacks(searchRunnable);
+                searchHandler.postDelayed(searchRunnable, 200);
                 return true;
             }
         });
 
         App.addListener(this);
-        showEmptyHint(true);
     }
 
     @Override
@@ -91,13 +112,15 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
     public void onServiceChanged(XposedService svc) {
         service = svc;
         if (svc != null) {
+            adapter.setService(svc);
             loadSystemHideEnabled();
             AppListRepository.getInstance().refreshData(svc, getPackageManager(), this);
         } else {
             systemHideEnabled = false;
-            adapter.submitList(Collections.emptyList());
+            adapter.setService(null);
+            adapter.setData(Collections.emptyList());
             binding.swipeRefresh.setRefreshing(false);
-            showEmptyHint(true);
+            binding.rvApps.setVisibility(View.GONE);
         }
     }
 
@@ -109,9 +132,9 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
                 break;
             }
         }
-        adapter.submitList(filteredList);
+        adapter.setData(filteredList);
         binding.swipeRefresh.setRefreshing(false);
-        showEmptyHint(filteredList.isEmpty());
+        showAppList(filteredList);
     }
 
     @Override
@@ -140,12 +163,22 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
                 break;
             }
         }
-        adapter.submitList(filtered);
-        showEmptyHint(filtered.isEmpty());
+        adapter.setData(filtered);
+        showAppList(filtered);
     }
 
-    private void showEmptyHint(boolean empty) {
-        binding.emptyHint.setVisibility(empty ? View.VISIBLE : View.GONE);
+    private void showAppList(List<AppInfo> filtered) {
+        if (filtered.isEmpty()) {
+            binding.rvApps.setVisibility(View.GONE);
+            return;
+        }
+
+        binding.rvApps.setVisibility(View.VISIBLE);
+        binding.rvApps.post(() -> {
+            if (binding.rvApps.getVisibility() == View.VISIBLE) {
+                binding.rvApps.requestLayout();
+            }
+        });
     }
 
     @Override
@@ -169,6 +202,7 @@ public class MainActivity extends AppCompatActivity implements App.ServiceListen
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        searchHandler.removeCallbacks(searchRunnable);
         App.removeListener(this);
     }
 }

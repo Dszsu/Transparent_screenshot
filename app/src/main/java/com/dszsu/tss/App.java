@@ -4,6 +4,8 @@ import android.app.Application;
 
 import androidx.annotation.NonNull;
 
+import com.google.android.material.color.DynamicColors;
+
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import io.github.libxposed.service.XposedService;
@@ -29,6 +31,7 @@ public class App extends Application implements XposedServiceHelper.OnServiceLis
     @Override
     public void onCreate() {
         super.onCreate();
+        DynamicColors.applyToActivitiesIfAvailable(this);
         XposedServiceHelper.registerListener(this);
     }
 

@@ -4,15 +4,15 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.AdapterView;
+
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
-import android.widget.Spinner;
+import android.widget.AutoCompleteTextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.SwitchCompat;
+import com.google.android.material.materialswitch.MaterialSwitch;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -23,9 +23,11 @@ import io.github.libxposed.service.XposedService;
 public class SettingsActivity extends AppCompatActivity implements App.ServiceListener {
 
     private XposedService service;
-    private Spinner spinnerBrand;
-    private SwitchCompat switchSystemHide;
-    private SwitchCompat switchSystemUIEnhancement;
+    private AutoCompleteTextView spinnerBrand;
+    private int brandIndex = 0;
+    private String[] brandLabels;
+    private MaterialSwitch switchSystemHide;
+    private MaterialSwitch switchSystemUIEnhancement;
     private TextView textSystemHideInfo;
     private TextView textSystemUIInfo;
     private TextView textSystemHideLabel;
@@ -57,9 +59,11 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
 
         String[] brandLabels = getResources().getStringArray(R.array.brand_labels);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, brandLabels);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                R.layout.item_dropdown, brandLabels);
         spinnerBrand.setAdapter(adapter);
+        this.brandLabels = brandLabels;
+
+        applySegmentedBackground();
 
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
@@ -92,7 +96,8 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                 }
             }
         }
-        spinnerBrand.setSelection(pos, false);
+        spinnerBrand.setText(brandLabels[pos], false);
+        brandIndex = pos;
 
         SharedPreferences sysPrefs = service.getRemotePreferences("system_hide");
         boolean hasPackages = sysPrefs.contains("packages");
@@ -121,16 +126,10 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
     }
 
     private void setupListeners() {
-        spinnerBrand.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (loading) return;
-                saveGlobalTitle(BRAND_VALUES[position]);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
+        spinnerBrand.setOnItemClickListener((parent, view, position, id) -> {
+            if (loading) return;
+            brandIndex = position;
+            saveGlobalTitle(BRAND_VALUES[position]);
         });
 
         switchSystemHide.setOnCheckedChangeListener((v, checked) -> {
@@ -140,10 +139,6 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                 return;
             }
             if (checked) {
-                SharedPreferences prefs = service.getRemotePreferences("system_hide");
-                if (!prefs.contains("packages")) {
-                    prefs.edit().putStringSet("packages", new HashSet<>()).apply();
-                }
                 boolean alreadyInScope = service.getScope().contains("system");
                 if (!alreadyInScope) {
                     service.requestScope(Collections.singletonList("system"),
@@ -151,6 +146,10 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                                 @Override
                                 public void onScopeRequestApproved(@NonNull List<String> approved) {
                                     runOnUiThread(() -> {
+                                        SharedPreferences prefs = service.getRemotePreferences("system_hide");
+                                        if (!prefs.contains("packages")) {
+                                            prefs.edit().putStringSet("packages", new HashSet<>()).apply();
+                                        }
                                         loadConfig();
                                         Toast.makeText(SettingsActivity.this,
                                                 R.string.system_hide_enabled, Toast.LENGTH_LONG).show();
@@ -167,10 +166,16 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                                 }
                             });
                 } else {
+                    SharedPreferences prefs = service.getRemotePreferences("system_hide");
+                    if (!prefs.contains("packages")) {
+                        prefs.edit().putStringSet("packages", new HashSet<>()).apply();
+                    }
                     Toast.makeText(SettingsActivity.this,
                             R.string.system_hide_enabled, Toast.LENGTH_LONG).show();
                 }
             } else {
+
+                ScopeManageActivity.triggerUninstallHotReload(service, "system");
                 service.removeScope(Collections.singletonList("system"));
                 service.getRemotePreferences("system_hide").edit().remove("packages").apply();
                 Toast.makeText(SettingsActivity.this, R.string.system_hide_disabled, Toast.LENGTH_LONG).show();
@@ -184,8 +189,6 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                 return;
             }
             if (checked) {
-                service.getRemotePreferences("system_hide").edit()
-                        .putBoolean("system_ui_enhancement_enabled", true).apply();
                 boolean alreadyInScope = service.getScope().contains("com.android.systemui");
                 if (!alreadyInScope) {
                     service.requestScope(Collections.singletonList("com.android.systemui"),
@@ -193,6 +196,8 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                                 @Override
                                 public void onScopeRequestApproved(@NonNull List<String> approved) {
                                     runOnUiThread(() -> {
+                                        service.getRemotePreferences("system_hide").edit()
+                                                .putBoolean("system_ui_enhancement_enabled", true).apply();
                                         loadConfig();
                                         Toast.makeText(SettingsActivity.this,
                                                 R.string.system_ui_enhancement_enabled, Toast.LENGTH_LONG).show();
@@ -209,10 +214,14 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
                                 }
                             });
                 } else {
+                    service.getRemotePreferences("system_hide").edit()
+                            .putBoolean("system_ui_enhancement_enabled", true).apply();
                     Toast.makeText(SettingsActivity.this,
                             R.string.system_ui_enhancement_enabled, Toast.LENGTH_LONG).show();
                 }
             } else {
+
+                ScopeManageActivity.triggerUninstallHotReload(service, "com.android.systemui");
                 service.removeScope(Collections.singletonList("com.android.systemui"));
                 service.getRemotePreferences("system_hide").edit()
                         .remove("system_ui_enhancement_enabled").apply();
@@ -247,5 +256,28 @@ public class SettingsActivity extends AppCompatActivity implements App.ServiceLi
     protected void onDestroy() {
         super.onDestroy();
         App.removeListener(this);
+    }
+
+    private void applySegmentedBackground() {
+        android.view.ViewGroup group = findViewById(R.id.settings_group);
+        if (group == null) return;
+        int n = group.getChildCount();
+        float density = getResources().getDisplayMetrics().density;
+        float r16 = 16f * density, r4 = 4f * density;
+        for (int i = 0; i < n; i++) {
+            android.view.View v = group.getChildAt(i);
+            float tl, tr, br, bl;
+            if (i == 0) {
+                tl = r16; tr = r16; br = r4; bl = r4;
+            } else if (i == n - 1) {
+                tl = r4; tr = r4; br = r16; bl = r16;
+            } else {
+                tl = r4; tr = r4; br = r4; bl = r4;
+            }
+            android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+            g.setColor(ThemeUtils.cardColor(this));
+            g.setCornerRadii(new float[]{tl, tl, tr, tr, br, br, bl, bl});
+            v.setBackground(g);
+        }
     }
 }

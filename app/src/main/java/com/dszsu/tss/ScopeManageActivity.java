@@ -1,42 +1,44 @@
 package com.dszsu.tss;
 
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
-import com.dszsu.tss.databinding.ActivitySystemHideBinding;
+import com.dszsu.tss.databinding.ActivityScopeBinding;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import io.github.libxposed.service.HookedTarget;
 import io.github.libxposed.service.XposedService;
 
-public class SystemHideActivity extends AppCompatActivity implements App.ServiceListener,
+public class ScopeManageActivity extends AppCompatActivity implements App.ServiceListener,
         AppListRepository.OnDataRefreshListener {
 
-    private static final Set<String> EXCLUDE_PACKAGES = Set.of(
-            "system", "android", "com.android.systemui", "oplus");
+    private static final String VIRTUAL_SYSTEM = "system";
 
-    private final Set<String> hiddenPackages = new HashSet<>();
+    private final Set<String> scopePackages = new HashSet<>();
     private final List<AppInfo> allFilteredApps = new ArrayList<>();
 
-    private ActivitySystemHideBinding binding;
+    private ActivityScopeBinding binding;
     private XposedService service;
     private ToggleAppListAdapter adapter;
-    private boolean showSystemApps = false;
     private String currentQuery = "";
+
+    private boolean showSystemApps = false;
 
     private final Handler refreshHandler = new Handler(Looper.getMainLooper());
     private final Runnable refreshRetry = () -> ensureDataLoaded();
@@ -46,7 +48,7 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        binding = ActivitySystemHideBinding.inflate(getLayoutInflater());
+        binding = ActivityScopeBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
         setSupportActionBar(binding.toolbar);
@@ -124,13 +126,13 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
     public void onServiceChanged(XposedService svc) {
         service = svc;
         if (svc != null) {
-            loadHiddenPackages();
+            loadScopePackages();
             ensureDataLoaded();
         } else {
-            hiddenPackages.clear();
+            scopePackages.clear();
             allFilteredApps.clear();
             refreshHandler.removeCallbacks(refreshRetry);
-            if (adapter != null) adapter.submitList(allFilteredApps, hiddenPackages);
+            if (adapter != null) adapter.submitList(allFilteredApps, scopePackages);
         }
     }
 
@@ -175,31 +177,27 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         return query == null ? "" : query.toLowerCase(Locale.ROOT).trim();
     }
 
-    private void loadHiddenPackages() {
+    private void loadScopePackages() {
+        scopePackages.clear();
         if (service == null) return;
-        SharedPreferences prefs = service.getRemotePreferences("system_hide");
-        hiddenPackages.clear();
-        Set<String> raw = prefs.getStringSet("packages", new HashSet<>());
+        List<String> raw = service.getScope();
         for (String p : raw) {
             if (p != null && !p.isEmpty()) {
-                hiddenPackages.add(normalizePackageName(p));
+                scopePackages.add(normalizePackageName(p));
             }
         }
+        scopePackages.remove(VIRTUAL_SYSTEM);
     }
 
     private void rebuildAppList() {
         List<AppInfo> allApps = AppListRepository.getInstance().getAllApps();
         allFilteredApps.clear();
-
         for (AppInfo app : allApps) {
             String lowerPkg = normalizePackageName(app.getPackageName());
-            boolean enabled = hiddenPackages.contains(lowerPkg);
+            if (VIRTUAL_SYSTEM.equals(lowerPkg)) continue;
 
-            if (!enabled) {
-                if (EXCLUDE_PACKAGES.contains(lowerPkg) || isSubPackageOfExcluded(lowerPkg))
-                    continue;
-                if (!showSystemApps && app.isSystemApp()) continue;
-            }
+            if (!showSystemApps && app.isSystemApp()
+                    && !scopePackages.contains(lowerPkg)) continue;
             allFilteredApps.add(app);
         }
 
@@ -215,13 +213,6 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         applyFilter(currentQuery);
     }
 
-    private boolean isSubPackageOfExcluded(String lowerPkg) {
-        for (String excluded : EXCLUDE_PACKAGES) {
-            if (lowerPkg.startsWith(excluded + ".")) return true;
-        }
-        return false;
-    }
-
     private void applyFilter(String query) {
         if (adapter == null) return;
         String lowerQuery = normalizeQuery(query);
@@ -234,7 +225,7 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
                     && !app.getNormalizedPackageName().contains(lowerQuery)) {
                 continue;
             }
-            if (hiddenPackages.contains(app.getNormalizedPackageName())) {
+            if (scopePackages.contains(app.getNormalizedPackageName())) {
                 enabled.add(app);
             } else {
                 disabled.add(app);
@@ -247,21 +238,70 @@ public class SystemHideActivity extends AppCompatActivity implements App.Service
         List<AppInfo> finalList = new ArrayList<>(enabled.size() + disabled.size());
         finalList.addAll(enabled);
         finalList.addAll(disabled);
-        adapter.submitList(finalList, hiddenPackages);
+        adapter.submitList(finalList, scopePackages);
     }
 
     private void onToggle(String packageName, boolean enabled) {
         if (service == null) return;
         String lowerPkg = normalizePackageName(packageName);
         if (enabled) {
-            hiddenPackages.add(lowerPkg);
+            if (scopePackages.contains(lowerPkg)) return;
+            service.requestScope(Collections.singletonList(lowerPkg),
+                    new XposedService.OnScopeEventListener() {
+                        @Override
+                        public void onScopeRequestApproved(@NonNull List<String> approved) {
+                            runOnUiThread(() -> {
+                                loadScopePackages();
+                                applyFilter(currentQuery);
+                                Toast.makeText(ScopeManageActivity.this,
+                                        getString(R.string.scope_added, packageName),
+                                        Toast.LENGTH_SHORT).show();
+                            });
+                        }
+
+                        @Override
+                        public void onScopeRequestFailed(@NonNull String message) {
+                            runOnUiThread(() -> {
+                                loadScopePackages();
+                                applyFilter(currentQuery);
+                                adapter.refreshItem(packageName);
+                                Toast.makeText(ScopeManageActivity.this,
+                                        getString(R.string.scope_request_failed, message),
+                                        Toast.LENGTH_LONG).show();
+                            });
+                        }
+                    });
         } else {
-            hiddenPackages.remove(lowerPkg);
+            if (!scopePackages.contains(lowerPkg)) return;
+
+            triggerUninstallHotReload(service, lowerPkg);
+            service.removeScope(Collections.singletonList(lowerPkg));
+            scopePackages.remove(lowerPkg);
+            applyFilter(currentQuery);
+            Toast.makeText(this, getString(R.string.scope_removed, packageName),
+                    Toast.LENGTH_SHORT).show();
         }
-        service.getRemotePreferences("system_hide").edit()
-                .putStringSet("packages", new HashSet<>(hiddenPackages))
-                .apply();
-        applyFilter(currentQuery);
+    }
+
+    public static void triggerUninstallHotReload(XposedService service, String pkg) {
+        if (service == null) return;
+        try {
+
+            for (HookedTarget t : service.getRunningTargets()) {
+                String pn = t.getProcessName();
+                if (pn == null) continue;
+
+                if (pn.equals(pkg) || pn.startsWith(pkg + ":")) {
+                    Bundle extras = new Bundle();
+                    extras.putBoolean("uninstall_hook", true);
+                    service.hotReloadModule(t, extras, (target, result) ->
+                            android.util.Log.i("TSS", "uninstall hot reload: "
+                                    + target.getProcessName() + " -> " + result.status()));
+                }
+            }
+        } catch (Throwable t) {
+            android.util.Log.w("TSS", "triggerUninstallHotReload failed: " + t);
+        }
     }
 
     @Override

@@ -9,16 +9,16 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.AdapterView;
+
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.Spinner;
+import android.widget.AutoCompleteTextView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.SwitchCompat;
+import com.google.android.material.materialswitch.MaterialSwitch;
 
 import java.util.Locale;
 
@@ -30,12 +30,15 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
     private XposedService service;
     private static final String GLOBAL_GROUP = "global";
     private EditText editCustomTitle;
-    private Spinner spinnerTitleMode;
+    private View layoutCustomTitle;
+    private AutoCompleteTextView spinnerTitleMode;
+    private int titleModeIndex = 0;
+    private String[] titleModes;
     private View layoutTitlePicker;
     private static final String KEY_GLOBAL_TITLE = "title";
     private boolean loading = false;
     private String prefsGroup;
-    private SwitchCompat switchDisableSkipScreenshot, switchDimBehind, switchShowWallpaper,
+    private MaterialSwitch switchDisableSkipScreenshot, switchForceAllowScreenshot, switchDimBehind, switchShowWallpaper,
             switchMagicFlags, switchNofocusOnly, switchHideRecentCard, switchWindowTitle;
     private TextView textGlobalHint;
 
@@ -52,12 +55,63 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         prefsGroup = packageName.toLowerCase(Locale.ROOT);
 
         bindViews();
+        applySegmentedBackground();
         setTopBarInfo();
+        setupKeyboardScroll();
         App.addListener(this);
+    }
+
+    private void setupKeyboardScroll() {
+        final android.widget.ScrollView scrollView = findViewById(R.id.scroll_config);
+        if (scrollView == null) return;
+        scrollView.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            if (scrollView.getHeight() == 0) return;
+            android.graphics.Rect r = new android.graphics.Rect();
+            scrollView.getWindowVisibleDisplayFrame(r);
+            int screenHeight = scrollView.getRootView().getHeight();
+            int keyboardHeight = screenHeight - r.bottom;
+            if (keyboardHeight > screenHeight * 0.15) {
+
+                scrollView.post(() -> {
+                    if (editCustomTitle.getVisibility() != View.VISIBLE) return;
+                    int[] pos = new int[2];
+                    editCustomTitle.getLocationOnScreen(pos);
+                    int target = pos[1] + editCustomTitle.getHeight()
+                            - r.bottom + scrollView.getScrollY();
+                    if (target > scrollView.getScrollY()) {
+                        scrollView.smoothScrollTo(0, target);
+                    }
+                });
+            }
+        });
+    }
+
+    private void applySegmentedBackground() {
+        android.view.ViewGroup group = findViewById(R.id.settings_group);
+        if (group == null) return;
+        int n = group.getChildCount();
+        float density = getResources().getDisplayMetrics().density;
+        float r16 = 16f * density, r4 = 4f * density;
+        for (int i = 0; i < n; i++) {
+            android.view.View v = group.getChildAt(i);
+            float tl, tr, br, bl;
+            if (i == 0) {
+                tl = r16; tr = r16; br = r4; bl = r4;
+            } else if (i == n - 1) {
+                tl = r4; tr = r4; br = r16; bl = r16;
+            } else {
+                tl = r4; tr = r4; br = r4; bl = r4;
+            }
+            android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+            g.setColor(ThemeUtils.cardColor(this));
+            g.setCornerRadii(new float[]{tl, tl, tr, tr, br, br, bl, bl});
+            v.setBackground(g);
+        }
     }
 
     private void bindViews() {
         switchDisableSkipScreenshot = findViewById(R.id.switch_disable_skip_screenshot);
+        switchForceAllowScreenshot = findViewById(R.id.switch_force_allow_screenshot);
         switchDimBehind = findViewById(R.id.switch_dim_behind);
         switchShowWallpaper = findViewById(R.id.switch_show_wallpaper);
         switchMagicFlags = findViewById(R.id.switch_magic_flags);
@@ -65,14 +119,14 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         switchHideRecentCard = findViewById(R.id.switch_hide_recent_card);
         switchWindowTitle = findViewById(R.id.switch_window_title);
         editCustomTitle = findViewById(R.id.edit_custom_title);
+        layoutCustomTitle = findViewById(R.id.layout_custom_title);
         spinnerTitleMode = findViewById(R.id.spinner_title_mode);
         layoutTitlePicker = findViewById(R.id.layout_title_picker);
         textGlobalHint = findViewById(R.id.text_global_hint);
 
-        String[] titleModes = {getString(R.string.title_mode_global), getString(R.string.title_mode_custom)};
+        titleModes = new String[]{getString(R.string.title_mode_global), getString(R.string.title_mode_custom)};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, titleModes);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                R.layout.item_dropdown, titleModes);
         spinnerTitleMode.setAdapter(adapter);
     }
 
@@ -106,7 +160,16 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         if (service == null) return;
         loading = true;
         SharedPreferences prefs = service.getRemotePreferences(prefsGroup);
-        switchDisableSkipScreenshot.setChecked(prefs.contains("enable_skip_screenshot"));
+        boolean skipOn = prefs.contains("enable_skip_screenshot");
+        boolean forceOn = prefs.contains("force_allow_screenshot");
+        if (forceOn && skipOn) {
+
+            prefs.edit().remove("enable_skip_screenshot").apply();
+            skipOn = false;
+        }
+        switchDisableSkipScreenshot.setChecked(skipOn);
+        switchForceAllowScreenshot.setChecked(forceOn);
+        updateMutexState();
         switchDimBehind.setChecked(prefs.contains("FLAG_DIM_BEHIND_0"));
         switchShowWallpaper.setChecked(prefs.contains("show_wallpaper"));
         switchMagicFlags.setChecked(prefs.contains("magic_flags"));
@@ -120,18 +183,21 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
 
         if (titleEnabled) {
             if (savedTitle.equals("$global")) {
-                spinnerTitleMode.setSelection(0, false);
-                editCustomTitle.setVisibility(View.GONE);
+                spinnerTitleMode.setText(titleModes[0], false);
+                titleModeIndex = 0;
+                layoutCustomTitle.setVisibility(View.GONE);
                 updateGlobalHint();
             } else {
-                spinnerTitleMode.setSelection(1, false);
-                editCustomTitle.setVisibility(View.VISIBLE);
+                spinnerTitleMode.setText(titleModes[1], false);
+                titleModeIndex = 1;
+                layoutCustomTitle.setVisibility(View.VISIBLE);
                 editCustomTitle.setText(savedTitle);
                 textGlobalHint.setVisibility(View.GONE);
             }
         } else {
-            spinnerTitleMode.setSelection(0, false);
-            editCustomTitle.setVisibility(View.GONE);
+            spinnerTitleMode.setText(titleModes[0], false);
+                titleModeIndex = 0;
+            layoutCustomTitle.setVisibility(View.GONE);
             textGlobalHint.setVisibility(View.GONE);
         }
 
@@ -155,14 +221,29 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         spinnerTitleMode.setEnabled(enabled);
         editCustomTitle.setEnabled(enabled);
         if (!enabled) {
-            editCustomTitle.setVisibility(View.GONE);
+            layoutCustomTitle.setVisibility(View.GONE);
             textGlobalHint.setVisibility(View.GONE);
         }
     }
 
     private void setupListeners() {
         switchDisableSkipScreenshot.setOnCheckedChangeListener((v, checked) -> {
-            if (!loading) savePref("enable_skip_screenshot", checked);
+            if (loading) return;
+            if (checked && switchForceAllowScreenshot.isChecked()) {
+                savePref("force_allow_screenshot", false);
+                switchForceAllowScreenshot.setChecked(false);
+            }
+            savePref("enable_skip_screenshot", checked);
+            updateMutexState();
+        });
+        switchForceAllowScreenshot.setOnCheckedChangeListener((v, checked) -> {
+            if (loading) return;
+            if (checked && switchDisableSkipScreenshot.isChecked()) {
+                savePref("enable_skip_screenshot", false);
+                switchDisableSkipScreenshot.setChecked(false);
+            }
+            savePref("force_allow_screenshot", checked);
+            updateMutexState();
         });
         switchDimBehind.setOnCheckedChangeListener((v, checked) -> {
             if (!loading) savePref("FLAG_DIM_BEHIND_0", checked);
@@ -185,31 +266,27 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
             if (loading) return;
             if (checked) {
                 savePref("$global");
-                spinnerTitleMode.setSelection(0, false);
-                editCustomTitle.setVisibility(View.GONE);
+                spinnerTitleMode.setText(titleModes[0], false);
+                titleModeIndex = 0;
+                layoutCustomTitle.setVisibility(View.GONE);
                 updateGlobalHint();
             } else {
                 savePref(null);
             }
         });
 
-        spinnerTitleMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (loading) return;
-                if (position == 0) {
-                    editCustomTitle.setVisibility(View.GONE);
-                    savePref("$global");
-                    updateGlobalHint();
-                } else {
-                    editCustomTitle.setVisibility(View.VISIBLE);
-                    editCustomTitle.requestFocus();
-                    textGlobalHint.setVisibility(View.GONE);
-                    savePref(editCustomTitle.getText().toString().trim());
-                }
-            }
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
+        spinnerTitleMode.setOnItemClickListener((parent, view, position, id) -> {
+            if (loading) return;
+            titleModeIndex = position;
+            if (position == 0) {
+                layoutCustomTitle.setVisibility(View.GONE);
+                savePref("$global");
+                updateGlobalHint();
+            } else {
+                layoutCustomTitle.setVisibility(View.VISIBLE);
+                editCustomTitle.requestFocus();
+                textGlobalHint.setVisibility(View.GONE);
+                savePref(editCustomTitle.getText().toString().trim());
             }
         });
 
@@ -220,7 +297,7 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (loading) return;
-                if (spinnerTitleMode.getSelectedItemPosition() == 1 && switchWindowTitle.isChecked()) {
+                if (titleModeIndex == 1 && switchWindowTitle.isChecked()) {
                     savePref(s.toString().trim());
                 }
             }
@@ -232,6 +309,15 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
+    }
+
+    private void updateMutexState() {
+        boolean skipOn = switchDisableSkipScreenshot.isChecked();
+        boolean forceOn = switchForceAllowScreenshot.isChecked();
+        switchForceAllowScreenshot.setEnabled(!skipOn);
+        switchForceAllowScreenshot.setAlpha(skipOn ? 0.4f : 1.0f);
+        switchDisableSkipScreenshot.setEnabled(!forceOn);
+        switchDisableSkipScreenshot.setAlpha(forceOn ? 0.4f : 1.0f);
     }
 
     private void savePref(String stringValue) {
@@ -264,7 +350,6 @@ public class ConfigActivity extends AppCompatActivity implements App.ServiceList
         }
         return super.onOptionsItemSelected(item);
     }
-
 
     @Override
     protected void onDestroy() {

@@ -23,7 +23,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.Transparent_screenshot">
+            android:theme="@style/Theme.Transparent_screenshot"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -34,7 +35,8 @@
             android:name=".ConfigActivity"
             android:label="功能配置"
             android:parentActivityName=".MainActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".SettingsActivity"
             android:label="品牌设置"
@@ -44,7 +46,14 @@
             android:name=".SystemHideActivity"
             android:exported="false"
             android:label="系统层隐藏"
-            android:parentActivityName=".MainActivity" />
+            android:parentActivityName=".MainActivity"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".ScopeManageActivity"
+            android:exported="false"
+            android:label="应用作用域"
+            android:parentActivityName=".MainActivity"
+            android:windowSoftInputMode="adjustResize" />
 
     </application>
 </manifest>
