@@ -1,0 +1,49 @@
+name: Manual Release Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Fix gradlew line endings
+        run: sed -i 's/\r$//' gradlew
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Clean project
+        run: ./gradlew clean
+
+      # No signing secrets are configured here on purpose:
+      # the release build type in app/build.gradle uses signingConfigs.debug,
+      # so assembleRelease works without any keystore or secrets.
+      - name: Build Release APK (no signing setup)
+        run: ./gradlew assembleRelease
+
+      - name: Show APK info
+        run: |
+          ls -lh app/build/outputs/apk/release/*.apk
+          sha256sum app/build/outputs/apk/release/*.apk | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-manual
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
