@@ -1,0 +1,54 @@
+name: Warnings Audit (temporary)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Create Xlint init script
+        run: |
+          cat > /tmp/xlint.init.gradle <<'EOF'
+          allprojects {
+              tasks.withType(JavaCompile).configureEach {
+                  options.compilerArgs += ['-Xlint:all', '-Xmaxwarns', '10000']
+              }
+          }
+          EOF
+
+      - name: Build with all warnings visible
+        run: |
+          set -o pipefail
+          ./gradlew clean assembleRelease --warning-mode all --init-script /tmp/xlint.init.gradle 2>&1 | tee build-full.log
+
+      - name: Run full lint
+        if: always()
+        run: |
+          set -o pipefail
+          ./gradlew lintRelease --init-script /tmp/xlint.init.gradle 2>&1 | tee lint-full.log || true
+
+      - name: Upload audit logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: warnings-audit
+          path: |
+            build-full.log
+            lint-full.log
+            app/build/reports/lint-results-release.txt
+            app/build/reports/lint-results-release.xml
+          if-no-files-found: warn
