@@ -92,6 +92,10 @@ public class AppListRepository {
                     apps.add(sysEntry);
                 }
 
+                // 界面打开时顺带清理已卸载应用的残留配置（须在配置检测之前，
+                // 这样清理结果能直接反映到本次列表上）
+                cleanupOrphanConfigs(service, pm, scope, seen);
+
                 apps.sort(Comparator.comparing(a -> a.getLabel().toLowerCase(Locale.ENGLISH)));
                 allApps = apps;
 
@@ -124,6 +128,99 @@ public class AppListRepository {
                 });
             }
         });
+    }
+
+    /**
+     * 清理已卸载应用的残留配置。
+     *
+     * <p>候选包名只能来自可枚举的来源（作用域列表与 system_hide 的 packages 集合）：
+     * libxposed service 没有枚举全部远程配置组的接口，无法反查所有配置组。
+     * 候选包不在已安装列表中时，还不能直接认定已卸载——先校验应用列表的
+     * 可见性是否可信（获取应用列表权限被收回/包可见性受限时枚举结果不完整），
+     * 再逐个用包名定向查询复核；两步都确认查不到，才视为应用已卸载并删除：
+     * 该包的整个远程配置组、system_hide 集合中的条目、以及残留的作用域条目。
+     * 虚拟包名（system）与系统关键包永不参与清理。
+     */
+    private void cleanupOrphanConfigs(XposedService service, PackageManager pm,
+                                      Set<String> scope, Set<String> installed) {
+        if (service == null || pm == null) return;
+        try {
+            // 第一步：校验枚举结果可信。android 与 SystemUI 在任何设备上都必然
+            // 已安装，若连它们都枚举不到（或总数明显过少），说明应用列表权限
+            // 有问题，此时一律不删，避免把“看不见”误判为“已卸载”。
+            if (installed.size() < 20
+                    || !installed.contains("android")
+                    || !installed.contains("com.android.systemui")) {
+                return;
+            }
+
+            // 候选：作用域 + system_hide 隐藏集合
+            Set<String> candidates = new HashSet<>(scope);
+            SharedPreferences sysPrefs = null;
+            Set<String> hidden = new HashSet<>();
+            try {
+                sysPrefs = service.getRemotePreferences("system_hide");
+                Set<String> raw = sysPrefs.getStringSet("packages", Collections.emptySet());
+                if (raw != null) {
+                    for (String p : raw) {
+                        String n = appInfoPackageName(p);
+                        if (!n.isEmpty()) {
+                            hidden.add(n);
+                            candidates.add(n);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+
+            // 第二步：逐个定向复核，确认确实查不到这个包
+            List<String> orphans = new ArrayList<>();
+            for (String pkg : candidates) {
+                if (pkg.isEmpty() || "system".equals(pkg)) continue;
+                if (isSystemCritical(pkg)) continue;
+                if (installed.contains(pkg)) continue;
+                try {
+                    pm.getApplicationInfo(pkg, 0);
+                    // 定向查询能查到，说明应用还在（只是没出现在枚举列表里），不删
+                } catch (PackageManager.NameNotFoundException e) {
+                    orphans.add(pkg);
+                } catch (Throwable ignored) {
+                    // 其它异常一律保守处理：不删
+                }
+            }
+            if (orphans.isEmpty()) return;
+
+            boolean hiddenChanged = false;
+            List<String> scopeOrphans = new ArrayList<>();
+            for (String pkg : orphans) {
+                // 删除该应用的整个远程配置组（无配置时 delete 也无副作用，
+                // 但先判空可避免对从未配置过的包做无意义调用）
+                try {
+                    SharedPreferences p = service.getRemotePreferences(pkg);
+                    if (p != null && !p.getAll().isEmpty()) {
+                        service.deleteRemotePreferences(pkg);
+                    }
+                } catch (Throwable ignored) {
+                }
+                if (hidden.remove(pkg)) hiddenChanged = true;
+                if (scope.contains(pkg)) scopeOrphans.add(pkg);
+                android.util.Log.i("TSS-AppList", "cleanup config of uninstalled app: " + pkg);
+            }
+            if (hiddenChanged && sysPrefs != null) {
+                try {
+                    sysPrefs.edit().putStringSet("packages", new HashSet<>(hidden)).apply();
+                } catch (Throwable ignored) {
+                }
+            }
+            if (!scopeOrphans.isEmpty()) {
+                try {
+                    service.removeScope(scopeOrphans);
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+            // 清理是附带动作，任何失败都不能影响应用列表本身的加载
+        }
     }
 
     private List<AppInfo> filterApps(List<AppInfo> source, String search) {
