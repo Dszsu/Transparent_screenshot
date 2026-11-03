@@ -1,0 +1,148 @@
+# Sync README to LSPosed Module Repo
+#
+# The source repo keeps Chinese and English READMEs as separate files
+# (README.md / README_en.md). The LSPosed module repo
+# (Xposed-Modules-Repo/com.dszsu.tss) uses a single merged README.md.
+# This workflow rebuilds that merged file from the two source files
+# whenever they change on main, and commits it to the module repo.
+# Source files are canonical: the merged file is generated, never edit
+# it by hand in the module repo.
+name: Sync README to LSPosed Module Repo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - README_en.md
+  workflow_dispatch:
+
+jobs:
+  sync-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+
+      - name: Build merged README
+        run: |
+          cat > build_readme.py <<'PYEOF'
+          #!/usr/bin/env python3
+          """Build the LSPosed repo README.md from the source repo's README.md (CN)
+          and README_en.md (EN). Mirrors the manual merge Ross maintains:
+          anchor nav, <span id> section markers, emoji section headers in the
+          target file, combined CN title, centered footer."""
+          import re
+          import sys
+
+          FOOTER = "**Transparent Screenshot** © 2025 · Made with ❤️"
+          FOOTER_CENTERED = '<div style="text-align: center;">\n\n' + FOOTER + '\n\n</div>'
+
+
+          def strip_nav(text: str) -> str:
+              """Drop the leading <div align="center"> ... </div> block and the
+              following '---' separator from a source README."""
+              lines = text.split('\n')
+              out = []
+              i = 0
+              # skip until after first standalone '---' that follows the nav div
+              while i < len(lines):
+                  if lines[i].strip() == '---':
+                      i += 1
+                      break
+                  i += 1
+              # skip blank lines after the separator
+              while i < len(lines) and lines[i].strip() == '':
+                  i += 1
+              return '\n'.join(lines[i:])
+
+
+          def apply_pairs(text: str, pairs) -> str:
+              for old, new in pairs:
+                  # Anchor heading replacements to whole lines so that e.g.
+                  # '### 系统层隐藏' does not also rewrite '### 系统层隐藏原理'.
+                  if old.startswith('#') and old.endswith('（') or old.startswith('### Module'):
+                      text = re.sub('^' + re.escape(old), new, text, flags=re.M)
+                  elif old.startswith('#'):
+                      text = re.sub('^' + re.escape(old) + '$', new, text, flags=re.M)
+                  else:
+                      text = text.replace(old, new)
+              return text
+
+
+          def center_footer(text: str) -> str:
+              # The footer line sits at the very end of each language body, preceded
+              # by a '---' separator which the target layout keeps outside the div.
+              return text.replace(FOOTER, FOOTER_CENTERED)
+
+
+          def build(cn_src: str, en_src: str) -> str:
+              cn = strip_nav(cn_src)
+              cn = apply_pairs(cn, [
+                  ("# 🖼️ 透明截图\n", "# 🖼️ 透明截图 (Transparent Screenshot)\n"),
+                  ("### 系统层隐藏设置", "### 🔌 系统层隐藏设置"),
+                  ("### 系统层隐藏", "### 🔧 系统层隐藏"),
+                  ("### 应用层功能", "### 🛡️ 应用层功能"),
+                  ("### 全局标题设置", "### 🌐 全局标题设置"),
+                  ("### 模块管理（", "### 🧩 模块管理（"),
+              ])
+              cn = center_footer(cn.rstrip('\n'))
+
+              en = strip_nav(en_src)
+              en = apply_pairs(en, [
+                  ("### System‑Level Hiding Setup", "### 🔌 System-Level Hiding Setup"),
+                  ("### System‑Level Hiding", "### 🔧 System-Level Hiding"),
+                  ("### App‑Level Features", "### 🛡️ App-Level Features"),
+                  ("### Global Title Setting", "### 🌐 Global Title Setting"),
+                  ("### Module Management (", "### 🧩 Module Management ("),
+              ])
+              en = center_footer(en.rstrip('\n'))
+
+              parts = [
+                  '<div align="center">',
+                  '  <a href="#cn">中文</a> | ',
+                  '  <a href="#en">English</a>',
+                  '</div>',
+                  '',
+                  '---',
+                  '',
+                  '<!-- 中文部分开始 -->',
+                  '<span id="cn"></span>',
+                  '',
+                  cn,
+                  '',
+                  '---',
+                  '',
+                  '<!-- 英文部分开始 -->',
+                  '<span id="en"></span>',
+                  '',
+                  en,
+                  '',
+              ]
+              return '\n'.join(parts)
+
+
+          if __name__ == '__main__':
+              cn = open(sys.argv[1], encoding='utf-8').read()
+              en = open(sys.argv[2], encoding='utf-8').read()
+              sys.stdout.write(build(cn, en))
+          PYEOF
+          python3 build_readme.py README.md README_en.md > merged_README.md
+          wc -l merged_README.md
+
+      - name: Push merged README to module repo
+        env:
+          LSPOSED_PAT: ${{ secrets.LSPOSED_PAT }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${LSPOSED_PAT}@github.com/Xposed-Modules-Repo/com.dszsu.tss.git" module-repo
+          cp merged_README.md module-repo/README.md
+          cd module-repo
+          if git diff --quiet -- README.md; then
+            echo "Module repo README already up to date; nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Sync README from Dszsu/Transparent_screenshot"
+          git push
