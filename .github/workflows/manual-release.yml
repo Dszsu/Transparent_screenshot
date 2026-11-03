@@ -30,16 +30,56 @@ jobs:
       - name: Clean project
         run: ./gradlew clean
 
-      # No signing secrets are configured here on purpose:
-      # the release build type in app/build.gradle uses signingConfigs.debug,
-      # so assembleRelease works without any keystore or secrets.
-      - name: Build Release APK (no signing setup)
+      - name: Build Release APK
         run: ./gradlew assembleRelease
 
-      - name: Show APK info
+      # The signing keystore is BKS format. Stock JDK/apksigner cannot read
+      # BKS ("BKS not found"), so BouncyCastle provider is added on the
+      # apksigner classpath. Keystore and passwords come from GitHub Secrets
+      # and are never written to the repository.
+      - name: Decode signing keystore
+        env:
+          KS_B64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          STORE_PW: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KEY_PW: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
-          ls -lh app/build/outputs/apk/release/*.apk
-          sha256sum app/build/outputs/apk/release/*.apk | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ -z "$KS_B64" ] || [ -z "$STORE_PW" ] || [ -z "$KEY_PW" ]; then
+            echo "::error::Signing secrets are not configured (SIGNING_KEYSTORE_BASE64 / SIGNING_STORE_PASSWORD / SIGNING_KEY_PASSWORD)."
+            exit 1
+          fi
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/dszkey.bks"
+          ls -l "$RUNNER_TEMP/dszkey.bks"
+
+      - name: Download BouncyCastle provider
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/bcprov.jar" \
+            https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk18on/1.78.1/bcprov-jdk18on-1.78.1.jar
+          ls -l "$RUNNER_TEMP/bcprov.jar"
+
+      - name: Sign APK with BKS keystore (apksigner)
+        env:
+          KS_PASS: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+        run: |
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          APK_IN="$(ls app/build/outputs/apk/release/*.apk | head -1)"
+          java -cp "$BT/lib/apksigner.jar:$RUNNER_TEMP/bcprov.jar" \
+            com.android.apksigner.ApkSignerTool sign \
+            --ks "$RUNNER_TEMP/dszkey.bks" --ks-type BKS \
+            --ks-key-alias "${KEY_ALIAS:-dszkey}" \
+            --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
+            --ks-provider-class org.bouncycastle.jce.provider.BouncyCastleProvider \
+            --out app-release-signed.apk "$APK_IN"
+          mv app-release-signed.apk "$APK_IN"
+          ls -lh "$APK_IN"
+
+      - name: Verify APK signature
+        run: |
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          APK="$(ls app/build/outputs/apk/release/*.apk | head -1)"
+          "$BT/apksigner" verify --print-certs "$APK" | tee -a "$GITHUB_STEP_SUMMARY"
+          sha256sum "$APK" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
