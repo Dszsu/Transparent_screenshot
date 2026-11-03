@@ -2,6 +2,8 @@ name: Warnings Audit (temporary)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [update]
 
 jobs:
   audit:
