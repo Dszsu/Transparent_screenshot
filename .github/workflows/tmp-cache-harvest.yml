@@ -5,7 +5,8 @@ name: Temp Cache Harvest
 # local Gradle user home for offline builds.
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [update]
 
 jobs:
   harvest:
