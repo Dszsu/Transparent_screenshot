@@ -46,6 +46,31 @@ public class AppListRepository {
         return packageName == null ? "" : packageName.toLowerCase(Locale.ENGLISH);
     }
 
+    /**
+     * 若某应用的配置只剩 disable_hook 一条，删除它的整个配置组并返回 true。
+     *
+     * <p>前提是该应用已不在作用域中：不在作用域本来就不会被 hook，
+     * “关闭 hook”这条记录已无意义，只会让该应用凭空出现在主界面列表里。
+     * 只要还开着任何其它配置，整组配置原样保留。
+     */
+    public static boolean deleteConfigIfOnlyDisableHook(XposedService service, String normalizedPkg) {
+        if (service == null || normalizedPkg == null || normalizedPkg.isEmpty()) return false;
+        if ("system".equals(normalizedPkg)) return false;
+        try {
+            SharedPreferences prefs = service.getRemotePreferences(normalizedPkg);
+            if (prefs == null) return false;
+            java.util.Map<String, ?> all = prefs.getAll();
+            if (all.size() == 1 && all.containsKey("disable_hook")) {
+                service.deleteRemotePreferences(normalizedPkg);
+                android.util.Log.i("TSS-AppList",
+                        "cleanup disable_hook-only config of out-of-scope app: " + normalizedPkg);
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
     public List<AppInfo> getAllApps() {
         return new ArrayList<>(allApps);
     }
@@ -95,6 +120,17 @@ public class AppListRepository {
                 // 界面打开时顺带清理已卸载应用的残留配置（须在配置检测之前，
                 // 这样清理结果能直接反映到本次列表上）
                 cleanupOrphanConfigs(service, pm, scope, seen);
+
+                // 已不在作用域、且配置只剩“关闭 hook”一条的已安装应用：
+                // 删掉这条无意义的配置，配置检测时它就不会再被算作“有配置”
+                // 而出现在列表中
+                if (service != null) {
+                    for (AppInfo a : apps) {
+                        if (!a.isInScope()) {
+                            deleteConfigIfOnlyDisableHook(service, a.getNormalizedPackageName());
+                        }
+                    }
+                }
 
                 apps.sort(Comparator.comparing(a -> a.getLabel().toLowerCase(Locale.ENGLISH)));
                 allApps = apps;

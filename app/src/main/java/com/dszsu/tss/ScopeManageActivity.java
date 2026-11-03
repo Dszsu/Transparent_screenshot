@@ -277,6 +277,9 @@ public class ScopeManageActivity extends AppCompatActivity implements App.Servic
             triggerUninstallHotReload(service, lowerPkg);
             service.removeScope(Collections.singletonList(lowerPkg));
             scopePackages.remove(lowerPkg);
+            // 刚移出作用域：若它的配置只剩“关闭 hook”一条，已无意义，
+            // 当场删掉（与列表刷新时的清理逻辑一致），不必等下次打开界面
+            AppListRepository.deleteConfigIfOnlyDisableHook(service, lowerPkg);
             applyFilter(currentQuery);
             Toast.makeText(this, getString(R.string.scope_removed, packageName),
                     Toast.LENGTH_SHORT).show();
