@@ -10,7 +10,7 @@
 *A LSPosed module that provides comprehensive screenshot, screen recording and screen casting protection for apps.*
 
 [![Android](https://img.shields.io/badge/Android-10%2B-brightgreen)]()
-[![API](https://img.shields.io/badge/Xposed%20API-101-blue)]()
+[![API](https://img.shields.io/badge/Xposed%20API-102-blue)]()
 [![License](https://img.shields.io/badge/License-MIT-yellow)]()
 
 ---
@@ -22,6 +22,7 @@
 | Feature | Description |
 |---------|-------------|
 | **Enable default window hiding** | Prevents system screenshots and recordings via the `setSkipScreenshot` flag. |
+| **Force allow screenshots** | Removes the app's own `FLAG_SECURE` and `skipScreenshot` protection so its windows are always capturable (the opposite of hiding; useful for lifting an app's built-in screenshot restrictions). |
 | **Remove shadow mask** | Removes window shadow effects. |
 | **Block touch and focus** | Sets `FLAG_NOT_FOCUSABLE \| FLAG_NOT_TOUCHABLE \| FLAG_NOT_TOUCH_MODAL` – window becomes unclickable. **(⚠️ Note: the window will not respond to any touch or focus events.)** |
 | **Bypass focus check** | Sets only `FLAG_NOT_FOCUSABLE` – touch events remain intact, but the input method (keyboard) will not pop up. **(⚠️ Note: keyboard input will not appear.)** |
@@ -35,6 +36,13 @@ System‑level hiding injects into the system framework to intercept window rend
 
 > ⚠️ May cause slight lag; enable only when necessary.
 
+### Module Management (new in 2.1.2)
+
+- **Dynamic scope**: Add or remove scope entries right inside the module; scope is requested from the framework dynamically, no need to tick apps in the LSPosed manager one by one.
+- **Enable Hook switch**: Each app's config page has a master switch; turning it off stops hooking for that app immediately, without removing it from scope.
+- **Hot reload**: Fully adapted to libxposed 102 hot reload; feature changes take effect immediately, with no need to restart the target app.
+- **Refreshed UI**: The interface has been upgraded to Material 3 with dynamic color support.
+
 ---
 
 ## 📖 Usage
@@ -42,9 +50,9 @@ System‑level hiding injects into the system framework to intercept window rend
 1. Ensure your device is **rooted** and has **LSPosed** framework installed.
 2. Install this module.
 3. Open LSPosed manager, enable the module.
-4. Select the **target apps** (scope) that you want the module to affect.
+4. Select the **target apps** (scope) that you want the module to affect; you can also request scope dynamically from within the module via the add button.
 5. Tap a target app to open its configuration page, and enable the desired features.
-6. **Force stop** the target app and restart it – the settings will take effect.
+6. Configuration changes take effect **immediately** via hot reload; no need to force stop or restart the target app.
 
 ### Global Title Setting
 
