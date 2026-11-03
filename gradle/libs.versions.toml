@@ -10,9 +10,11 @@ constraintlayout = "2.2.2"
 
 service = "102.0.0"
 swiperefreshlayout = "1.2.0"
+annotation = "1.0.0"
 
 [libraries]
 api = { module = "io.github.libxposed:api", version.ref = "api" }
+annotation = { module = "io.github.libxposed:annotation", version.ref = "annotation" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }

@@ -59,7 +59,10 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         final long generation = ++submitGeneration;
         if (list.isEmpty()) {
             list.addAll(incoming);
-            notifyDataSetChanged();
+            // 旧列表为空时全部条目都是新增，用精确的插入事件代替整表刷新
+            if (!incoming.isEmpty()) {
+                notifyItemRangeInserted(0, incoming.size());
+            }
             return;
         }
         final List<AppInfo> base = new ArrayList<>(list);

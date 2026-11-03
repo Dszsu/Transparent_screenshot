@@ -48,6 +48,10 @@ dependencies {
 }
 dependencies {
     compileOnly libs.api
+    // libxposed 的 api/service 类带有 @SinceApi 注解，但两个构件的 POM 都没有
+    // 声明对 annotation 构件的依赖，编译时找不到该注解类会给每个带注解的
+    // 类报一条 "Cannot find annotation method" 警告，需显式补上（仅编译期）
+    compileOnly libs.annotation
 }
 dependencies {
     implementation libs.swiperefreshlayout

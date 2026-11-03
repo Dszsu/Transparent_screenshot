@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -45,7 +45,7 @@ jobs:
 
       - name: Upload audit logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: warnings-audit
           path: |
@@ -53,4 +53,5 @@ jobs:
             lint-full.log
             app/build/reports/lint-results-release.txt
             app/build/reports/lint-results-release.xml
+            build/reports/problems/problems-report.html
           if-no-files-found: warn

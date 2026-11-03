@@ -46,14 +46,14 @@
                         style="@style/App.TextInputLayout.OutlinedBox.Rounded"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:hint="@string/gl_title">
+                        android:layout_marginTop="8dp">
 
                         <AutoCompleteTextView
                             style="@style/Widget.Material3.AutoCompleteTextView.OutlinedBox"
                             android:id="@+id/spinner_brand"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:hint="@string/gl_title"
                             android:inputType="none"
                             android:popupBackground="@drawable/dropdown_background" />
                     </com.google.android.material.textfield.TextInputLayout>

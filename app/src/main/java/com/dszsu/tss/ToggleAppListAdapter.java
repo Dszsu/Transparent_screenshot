@@ -102,7 +102,10 @@ public class ToggleAppListAdapter extends RecyclerView.Adapter<ToggleAppListAdap
             currentList.clear();
             currentList.addAll(newList);
             this.selected = new HashSet<>(newSelected);
-            notifyDataSetChanged();
+            // 旧列表为空时全部条目都是新增，用精确的插入事件代替整表刷新
+            if (!newList.isEmpty()) {
+                notifyItemRangeInserted(0, newList.size());
+            }
             return;
         }
         final List<AppInfo> base = new ArrayList<>(currentList);

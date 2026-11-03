@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
@@ -82,7 +82,7 @@ jobs:
           sha256sum "$APK" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Release APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-release-manual
           path: app/build/outputs/apk/release/*.apk
